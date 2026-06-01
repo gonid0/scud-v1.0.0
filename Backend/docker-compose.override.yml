@@ -1,0 +1,7 @@
+# Local dev override (gitignored-friendly): host 5432 is taken by another
+# project's container, so expose this stack's Postgres on 5433 instead.
+# Internal networking is unaffected — app/worker/migrate reach it as postgres:5432.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5433:5432"

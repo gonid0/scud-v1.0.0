@@ -1,0 +1,81 @@
+name: firmware
+
+on:
+  push:
+    paths:
+      - 'ESP32/firmware/**'
+      - '.github/workflows/firmware.yml'
+  pull_request:
+    paths:
+      - 'ESP32/firmware/**'
+      - '.github/workflows/firmware.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        # Два env: основной (NFC-only, battery-friendly) и BLE-enabled (mains).
+        env: [esp32dev, esp32dev_ble]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache PlatformIO core + packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/.cache
+            ~/.platformio/packages
+            ~/.platformio/platforms
+            ESP32/firmware/.pio
+          key: pio-${{ runner.os }}-${{ matrix.env }}-${{ hashFiles('ESP32/firmware/platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-${{ matrix.env }}-
+            pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio==6.1.*
+
+      - name: Build firmware (${{ matrix.env }})
+        working-directory: ESP32/firmware
+        run: pio run -e ${{ matrix.env }}
+
+      - name: Upload .bin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.env }}
+          path: |
+            ESP32/firmware/.pio/build/${{ matrix.env }}/firmware.bin
+            ESP32/firmware/.pio/build/${{ matrix.env }}/firmware.elf
+          retention-days: 14
+          if-no-files-found: warn
+
+  # Cross-implementation crypto conformance: the firmware C/C++ crypto must
+  # reproduce the shared golden vectors (docs/test_vectors/protocol_v1.json) --
+  # the same corpus the backend (pytest) and Android (testDebugUnitTest) check.
+  # Pure host build with gcc on the ubuntu runner -- no ESP32 toolchain needed.
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & run host crypto conformance test
+        working-directory: ESP32/firmware
+        run: |
+          g++ -std=c++17 -I src/crypto -I src/ble -I test_host -I lib/Monocypher \
+            test_host/test_conformance.cpp \
+            src/crypto/blake2s.cpp src/crypto/murmur3.cpp src/crypto/bloom.cpp \
+            src/crypto/key_id.cpp src/crypto/domains.cpp src/crypto/ed25519.cpp \
+            src/ble/ble_frame.cpp \
+            lib/Monocypher/monocypher.c lib/Monocypher/monocypher-ed25519.c \
+            -o conformance
+          ./conformance

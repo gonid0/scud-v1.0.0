@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}API keys{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">API keys</h1>
+
+{% if flash_plaintext %}
+<div class="mb-4 p-4 rounded bg-amber-50 border border-amber-300 text-amber-900">
+    <b>Новый ключ создан. Скопируйте сейчас, он не сохраняется и не показывается повторно:</b>
+    <pre class="mono text-xs mt-2 bg-white p-2 rounded break-all whitespace-pre-wrap select-all">{{ flash_plaintext }}</pre>
+</div>
+{% endif %}
+
+<form method="post" action="/admin/api-keys"
+      class="bg-white rounded-lg shadow p-4 mb-6 flex gap-3 items-end">
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Имя</label>
+        <input name="name" required maxlength="128"
+               class="px-3 py-2 border border-slate-300 rounded text-sm" placeholder="например: ops-laptop">
+    </div>
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Тип</label>
+        <select name="kind" class="px-3 py-2 border border-slate-300 rounded text-sm">
+            <option value="admin">admin</option>
+            <option value="integration">integration</option>
+        </select>
+    </div>
+    <button class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded text-sm font-medium">
+        + Создать ключ
+    </button>
+</form>
+
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+            <tr>
+                <th class="text-left px-3 py-2">Имя</th>
+                <th class="text-left px-3 py-2">Префикс</th>
+                <th class="text-left px-3 py-2">Тип</th>
+                <th class="text-left px-3 py-2">Создан</th>
+                <th class="text-left px-3 py-2">Последнее использование</th>
+                <th class="text-left px-3 py-2">Статус</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for k in keys %}
+            <tr class="border-t hover:bg-slate-50">
+                <td class="px-3 py-2">{{ k.name }}{% if k.api_key_id == current_admin.api_key_id %} <span class="text-xs text-blue-600">(вы)</span>{% endif %}</td>
+                <td class="px-3 py-2 mono text-xs">{{ k.key_prefix }}…</td>
+                <td class="px-3 py-2 text-xs">{{ k.kind }}</td>
+                <td class="px-3 py-2 mono text-xs">{{ k.created_at.strftime("%Y-%m-%d") }}</td>
+                <td class="px-3 py-2 mono text-xs">{% if k.last_used_at %}{{ k.last_used_at.strftime("%Y-%m-%d %H:%M") }}{% else %}—{% endif %}</td>
+                <td class="px-3 py-2">
+                    {% if k.revoked_at %}
+                        <span class="text-rose-700 bg-rose-50 px-2 py-0.5 rounded text-xs">revoked</span>
+                    {% elif k.expires_at and k.expires_at < (k.created_at.__class__.now(k.created_at.tzinfo)) %}
+                        <span class="text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-xs">expired</span>
+                    {% else %}
+                        <span class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-xs">active</span>
+                    {% endif %}
+                </td>
+                <td class="px-3 py-2 text-right">
+                    {% if not k.revoked_at and k.api_key_id != current_admin.api_key_id %}
+                    <form method="post" action="/admin/api-keys/{{ k.api_key_id }}/revoke" class="inline"
+                          onsubmit="return confirm('Отозвать ключ {{ k.name }}?')">
+                        <button class="text-xs text-rose-600 hover:underline">revoke</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500 text-sm">Нет ключей.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}SCUD admin{% endblock %} — SCUD</title>
+    {# Tailwind CDN — для VKR/MVP достаточно. В prod можно зафризить версию или собрать локально. #}
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    {# HTMX 2.x — inline-обновления таблиц и подтверждения. #}
+    <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .nav-link.active { background-color: rgb(31 41 55); color: white; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+    {% if current_admin is defined and current_admin %}
+    <div class="flex min-h-screen">
+        {# Sidebar #}
+        <aside class="w-60 bg-slate-900 text-slate-100 flex-shrink-0">
+            <div class="px-6 py-5 border-b border-slate-700">
+                <a href="/admin/" class="text-xl font-semibold tracking-tight">SCUD</a>
+                <div class="text-xs text-slate-400 mt-1">admin panel</div>
+            </div>
+            <nav class="p-2 space-y-1 text-sm">
+                {% set current = request.scope.get("path", "") %}
+                {% macro nav(href, label, icon='') %}
+                <a href="{{ href }}"
+                   class="nav-link block px-3 py-2 rounded hover:bg-slate-800 {% if current.startswith(href) and href != '/admin/' %}active{% elif current == '/admin/' and href == '/admin/' %}active{% endif %}">
+                    {{ icon }} {{ label }}
+                </a>
+                {% endmacro %}
+                {{ nav('/admin/', '⌂ Dashboard') }}
+                {{ nav('/admin/passages', '✓ Проходы') }}
+                {{ nav('/admin/users', '👤 Пользователи') }}
+                {{ nav('/admin/reader-groups', '📁 Группы ридеров') }}
+                {{ nav('/admin/readers', '📡 Ридеры') }}
+                {{ nav('/admin/permits', '🔑 Permits') }}
+                {{ nav('/admin/keys', '🪪 Issued keys') }}
+                {{ nav('/admin/api-keys', '🛡 API-keys') }}
+                {{ nav('/admin/webhooks', '🔔 Webhooks') }}
+                {{ nav('/admin/audit', '📜 Audit log') }}
+            </nav>
+            <div class="absolute bottom-0 w-60 p-3 border-t border-slate-700 bg-slate-900 text-xs text-slate-400">
+                <form method="post" action="/admin/logout">
+                    <button class="hover:text-white" type="submit">Выйти</button>
+                </form>
+            </div>
+        </aside>
+
+        {# Main #}
+        <main class="flex-1 p-8 overflow-auto">
+            {% block flash %}
+                {% if request.query_params.get('flash') %}
+                <div class="mb-4 p-3 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
+                    {{ request.query_params['flash'] }}
+                </div>
+                {% endif %}
+                {% if request.query_params.get('error') %}
+                <div class="mb-4 p-3 rounded bg-rose-50 border border-rose-200 text-rose-800 text-sm">
+                    {{ request.query_params['error'] }}
+                </div>
+                {% endif %}
+            {% endblock %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% else %}
+    {# Layout for /admin/login — без sidebar. #}
+    <div class="min-h-screen flex items-center justify-center p-4">
+        {% block login_content %}{% endblock %}
+    </div>
+    {% endif %}
+</body>
+</html>

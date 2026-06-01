@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Permits{% endblock %}
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-semibold">Permits</h1>
+    <div class="flex gap-2">
+        <a href="/admin/permits/bulk" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-900 px-4 py-2 rounded text-sm font-medium">
+            ☰ Bulk
+        </a>
+        <a href="/admin/permits/new" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded text-sm font-medium">
+            + Новый permit
+        </a>
+    </div>
+</div>
+
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+            <tr>
+                <th class="text-left px-3 py-2">Название</th>
+                <th class="text-left px-3 py-2">Пользователь</th>
+                <th class="text-left px-3 py-2">Ридер</th>
+                <th class="text-left px-3 py-2">Срок</th>
+                <th class="text-left px-3 py-2">n_par</th>
+                <th class="text-left px-3 py-2">Статус</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in permits %}
+            {% set u = users_map.get(p.user_id) %}
+            {% set r = readers_map.get(p.reader_id) %}
+            <tr class="border-t hover:bg-slate-50">
+                <td class="px-3 py-2">
+                    <a href="/admin/permits/{{ p.permit_id }}" class="text-blue-600 hover:underline">{{ p.display_name }}</a>
+                </td>
+                <td class="px-3 py-2">
+                    {% if u %}<a href="/admin/users/{{ u.user_id }}" class="hover:underline">{{ u.display_name }}</a>
+                    {% else %}<span class="text-slate-400">u#{{ p.user_id }}</span>{% endif %}
+                </td>
+                <td class="px-3 py-2">
+                    {% if r %}<a href="/admin/readers/{{ r.reader_id.hex() }}" class="hover:underline">{{ r.display_name }}</a>{% else %}—{% endif %}
+                </td>
+                <td class="px-3 py-2 text-xs mono">{{ p.valid_from.strftime("%Y-%m-%d") }} → {{ p.valid_until.strftime("%Y-%m-%d") }}</td>
+                <td class="px-3 py-2 mono">{{ p.n_parallel }}</td>
+                <td class="px-3 py-2">
+                    {% set s = status_of(p) %}
+                    {% if s == 'active' %}<span class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-xs">active</span>
+                    {% elif s == 'revoking' %}<span class="text-amber-700 bg-amber-50 px-2 py-0.5 rounded text-xs">revoking</span>
+                    {% else %}<span class="text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-xs">revoked</span>{% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="6" class="px-3 py-6 text-center text-slate-500 text-sm">Permits пока нет.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if next_cursor %}
+<div class="mt-4 text-right">
+    <a class="text-blue-600 hover:underline text-sm" href="/admin/permits?cursor={{ next_cursor }}">Следующая →</a>
+</div>
+{% endif %}
+{% endblock %}

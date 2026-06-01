@@ -1,0 +1,6 @@
+# host build artifacts
+*.exe
+*.obj
+*.pdb
+*.ilk
+conformance

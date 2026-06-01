@@ -1,0 +1,1703 @@
+openapi: 3.1.0
+info:
+  title: SCUD Backend API
+  version: "1.0.0"
+  description: |
+    HTTP API системы управления доступом (SCUD).
+
+    Контракт описывает три класса участников:
+
+    - **Мобильное приложение пользователя** (Android) — авторизуется
+      session_token'ом, выпускает ключи доступа, скачивает Bloom-фильтры для
+      доставки на ридер, отправляет отчёты от ридера на сервер.
+    - **Администратор / интеграция** — авторизуется API-ключом
+      (`X-Api-Key`), управляет пользователями, группами, ридерами, permit'ами,
+      выпущенными ключами, наблюдает доставку фильтров.
+    - **Public** — health-check и пара unauthenticated auth-эндпоинтов
+      (login / refresh).
+
+    Ключевые понятия:
+
+    - **Reader** — физический контроллер двери (ESP32). Имеет 16-байтный
+      `reader_id` и Ed25519 публичный ключ.
+    - **Reader group** — группа ридеров; пользователь видит только ридеры
+      из доступной ему `user_group → reader_group` пары.
+    - **Permit** — разрешение «пользователь P может пользоваться ридером R
+      в окне [valid_from, valid_until], выпускать до n_parallel ключей с
+      TTL ≤ max_token_ttl_seconds».
+    - **IssuedKey** — выпущенный пользователем ключ (CARD на терминологию
+      ридера). Подписан сервером, содержит `permit_id`, `device_id`, окно
+      `[issued_at, expires_at]`. Отозванные ключи попадают в Bloom-фильтр
+      ридера.
+    - **TimeGrant** — подписанный сервером talisman, разрешающий телефону
+      двигать часы ридера в момент tap'а (если их разнесло > 15 сек).
+    - **Filter package** — bloom_bytes + whitelist (false-positive override) +
+      blacklist_delta + подпись сервера. Скачивается приложением как
+      «курьер» и доставляется на ридер во время tap'а.
+    - **Two-phase admin revoke** — admin-revoke permit'а сначала переходит
+      в состояние "revoking" (`revoke_initiated_at = now`, `revoked_at = NULL`).
+      Финализируется только после того, как ридер применил bloom и все ключи
+      permit'а перешли в `is_active = False` (`revoked_at = now`, status
+      `"revoked"`).
+servers:
+  - url: http://localhost:8000
+    description: Local dev
+  - url: https://scud.example.com
+    description: Production (placeholder)
+
+tags:
+  - name: app-auth
+    description: Логин, refresh, регистрация устройства, logout.
+  - name: app-readers
+    description: Список ридеров, доступных текущему пользователю.
+  - name: app-permits
+    description: Permit'ы пользователя, ключи внутри permit'а, отзыв permit'а.
+  - name: app-keys
+    description: Выпуск и отзыв (на сервере) ключей доступа.
+  - name: app-courier
+    description: Загрузка filter package'ей для последующей доставки на ридер.
+  - name: app-reports
+    description: Отправка отчётов, собранных приложением с ридера.
+  - name: app-my-data
+    description: Агрегированные данные текущего пользователя.
+  - name: admin-users
+    description: Управление пользователями.
+  - name: admin-readers
+    description: Enrollment и управление ридерами.
+  - name: admin-reader-groups
+    description: Группы ридеров.
+  - name: admin-permits
+    description: Выпуск, изменение и отзыв permit'ов.
+  - name: admin-keys
+    description: Просмотр и принудительный отзыв выпущенных ключей.
+  - name: admin-api-keys
+    description: Управление API-ключами для admin/integration интеграций.
+  - name: admin-observability
+    description: Мониторинг доставки фильтров, фоновые задачи, audit log.
+  - name: health
+    description: Healthcheck.
+
+security:
+  - SessionToken: []
+  - AdminApiKey: []
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Health-check
+      description: |
+        Liveness-проба. Возвращает `{"status":"ok"}`. Не требует авторизации.
+        Используется балансировщиком и compose-healthcheck'ом.
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, example: "ok"}
+
+  # ===================================================================
+  # APP / AUTH
+  # ===================================================================
+  /api/v1/app/auth/login:
+    post:
+      tags: [app-auth]
+      summary: Логин по логину/паролю, получить session_token
+      description: |
+        Аутентифицирует пользователя по `login`/`password`. На успех создаёт
+        запись Session (`session_token` живёт ~1 час, `refresh_token` —
+        дольше) и возвращает оба токена + базовые данные пользователя.
+
+        Если в запросе передан `device_info` — он пишется в Session как
+        контекст устройства; сама регистрация ключа устройства (Ed25519
+        pubkey) делается отдельно через `/auth/register-device`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginRequest"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AuthTokens"}
+        "401":
+          description: invalid_credentials
+          content: {application/json: {schema: {$ref: "#/components/schemas/ErrorDetail"}}}
+        "403":
+          description: user_inactive
+          content: {application/json: {schema: {$ref: "#/components/schemas/ErrorDetail"}}}
+
+  /api/v1/app/auth/refresh:
+    post:
+      tags: [app-auth]
+      summary: Обновить session_token по refresh_token
+      description: |
+        Меняет валидный `refresh_token` на свежую пару session+refresh.
+        Старый refresh инвалидируется (rotation).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RefreshRequest"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AuthTokens"}
+        "401":
+          description: invalid_refresh_token
+
+  /api/v1/app/auth/register-device:
+    post:
+      tags: [app-auth]
+      summary: Привязать к сессии Ed25519-pubkey телефона
+      description: |
+        Создаёт (или переиспользует) запись Device для текущего пользователя,
+        связывая её с активной Session. Без этого нельзя выпускать ключи и
+        качать courier-доставки.
+
+        Идемпотентно: если пользователь уже регистрировал тот же `phone_pubkey`,
+        сервер возвращает существующий `device_id`. Если pubkey принадлежит
+        другому пользователю — `409 pubkey_conflict`.
+      security:
+        - SessionToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RegisterDeviceRequest"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  device_id: {type: string, format: uuid}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "409": {description: "pubkey_conflict"}
+        "422": {description: "invalid_base64"}
+
+  /api/v1/app/auth/logout:
+    post:
+      tags: [app-auth]
+      summary: Завершить текущую сессию
+      description: |
+        Помечает текущую Session как revoked. Refresh_token также становится
+        невалидным.
+      security:
+        - SessionToken: []
+      responses:
+        "200":
+          description: OK
+          content: {application/json: {schema: {$ref: "#/components/schemas/Ok"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  # ===================================================================
+  # APP / READERS
+  # ===================================================================
+  /api/v1/app/readers:
+    get:
+      tags: [app-readers]
+      summary: Список ридеров, доступных пользователю
+      description: |
+        Возвращает ридеры из reader_group'ов, привязанных к user_group'е
+        текущего пользователя. Для каждого ридера приводит публичный ключ —
+        приложение использует его при верификации подписей PUSH_INFO/FDI/BLK.
+      security:
+        - SessionToken: []
+      parameters:
+        - {name: group_id, in: query, required: false, schema: {type: string, format: uuid}, description: "Опциональный фильтр по reader_group."}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/ReaderPublic"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {description: "not_accessible (group вне доступной user_group)"}
+
+  /api/v1/app/readers/{reader_id_hex}:
+    get:
+      tags: [app-readers]
+      summary: Один ридер по hex ID
+      description: Сводка по одному ридеру (если он доступен пользователю).
+      security:
+        - SessionToken: []
+      parameters:
+        - {name: reader_id_hex, in: path, required: true, schema: {$ref: "#/components/schemas/ReaderIdHex"}}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ReaderPublic"}
+        "400": {description: "invalid reader_id hex"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {description: "not_accessible"}
+        "404": {description: "reader_not_found"}
+
+  # ===================================================================
+  # APP / PERMITS
+  # ===================================================================
+  /api/v1/app/permits:
+    get:
+      tags: [app-permits]
+      summary: Permit'ы текущего пользователя
+      description: |
+        Возвращает активные (не отозванные, ещё валидные по времени) permit'ы.
+        Для каждого: имя ридера, окно валидности, n_parallel, число активных
+        ключей и есть ли уже time_grant для текущего устройства (нужно UI,
+        чтобы решить, надо ли просить grant при выпуске следующего ключа).
+      security:
+        - SessionToken: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/PermitListItem"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /api/v1/app/permits/{permit_id}/keys:
+    get:
+      tags: [app-permits]
+      summary: Все ключи permit'а
+      description: |
+        Возвращает все ключи permit'а (включая ключи с других устройств того
+        же пользователя и неактивные/expired/revoked) — UI сам решает, что
+        показывать в архиве, а что в активном списке.
+
+        `full_key_bytes` (base64) возвращается, чтобы приложение могло
+        локально кэшировать ключ для tap'а; для чужих устройств он бесполезен,
+        но безвреден — без приватного ключа Ed25519 ключ не подписать.
+      security:
+        - SessionToken: []
+      parameters:
+        - {name: permit_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/IssuedKeyAppView"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {description: "not_owner"}
+
+  /api/v1/app/permits/{permit_id}/revoke:
+    post:
+      tags: [app-permits]
+      summary: Пользователь отзывает свой permit
+      description: |
+        Синхронный one-shot revoke: разрешён только когда у permit'а нет
+        активных ключей (иначе **409 has_active_keys** с количеством).
+
+        Это сознательно строже, чем admin-revoke: пользователь сам должен
+        сначала отозвать все свои ключи (или дождаться истечения), а потом
+        отказаться от permit'а. Двухфазной "revoking"-стадии тут нет.
+      security:
+        - SessionToken: []
+      parameters:
+        - {name: permit_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: OK
+          content: {application/json: {schema: {$ref: "#/components/schemas/Ok"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {description: "not_owner"}
+        "409":
+          description: has_active_keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: object
+                    properties:
+                      error: {type: string, enum: ["has_active_keys"]}
+                      active_count: {type: integer}
+
+  # ===================================================================
+  # APP / KEYS
+  # ===================================================================
+  /api/v1/app/keys/request:
+    post:
+      tags: [app-keys]
+      summary: Выпустить новый ключ доступа
+      description: |
+        Главный путь выпуска access-token'а: проверяется владение permit'ом,
+        окно валидности permit'а, лимит `n_parallel`, и максимально допустимый
+        TTL (`max_token_ttl_seconds`). Ключ привязывается к `device_id` из
+        текущей Session.
+
+        Поле `request_grant=true` дополнительно выпускает Time-Grant —
+        подписанный сервером объект, разрешающий приложению скорректировать
+        часы ридера в момент tap'а, если drift > 15 сек.
+
+        `issued_at_ts` (unix sec) позволяет выпустить future-dated ключ
+        (start time picker в UI) — ключ становится валидным только начиная
+        с этой метки.
+
+        Регенерация Bloom-фильтра ридера НЕ триггерится при выпуске ключа.
+        Это by-design: новый ключ добавляется в whitelist на стадии активации
+        FP-fallback'а, а сам Bloom меняется только при revoke.
+      security:
+        - SessionToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/KeyRequest"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/KeyResponse"}
+        "400":
+          description: |
+            ttl_too_long / ttl_invalid / permit_expired / permit_not_started /
+            no_active_device.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorDetail"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {description: "not_owner"}
+        "404": {description: "permit_not_found"}
+        "409":
+          description: n_parallel_exceeded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: object
+                    properties:
+                      error: {type: string, enum: ["n_parallel_exceeded"]}
+                      active_count: {type: integer}
+                      max: {type: integer}
+
+  /api/v1/app/keys/{key_id}/revoke-on-server:
+    post:
+      tags: [app-keys]
+      summary: Пользовательский revoke ключа (сервер-only)
+      description: |
+        Помечает ключ как `revoked_by_server` (PG-trigger оставляет
+        `is_active=True`, чтобы n_parallel-гейт не пропустил замену, пока
+        ридер не получит новый bloom).
+
+        Триггерит фоновую генерацию свежего фильтра для ридера → запись
+        попадает в Bloom → после доставки ридер переводит ключ в
+        `revoked_in_bloom` (`is_active=False`).
+
+        Ошибка **409 not_active**, если ключ уже отозван/истёк.
+      security:
+        - SessionToken: []
+      parameters:
+        - {name: key_id, in: path, required: true, schema: {type: string, description: "Hex-ID ключа (12 байт)."}}
+      responses:
+        "200":
+          description: OK
+          content: {application/json: {schema: {$ref: "#/components/schemas/Ok"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {description: "not_owner"}
+        "404": {description: "key_not_found"}
+        "409":
+          description: not_active
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: object
+                    properties:
+                      error: {type: string, enum: ["not_active"]}
+
+  # ===================================================================
+  # APP / COURIER
+  # ===================================================================
+  /api/v1/app/courier/available:
+    get:
+      tags: [app-courier]
+      summary: Список доступных filter-доставок
+      description: |
+        Перечисляет filter package'и, которые сервер хочет, чтобы приложение
+        скачало и при следующем tap'е доставило на конкретный ридер. Каждая
+        запись содержит `delivery_id`, целевой `reader_id` и `filter_version`.
+
+        Приложение само решает, какие из них взять — обычно «свои» ридеры
+        (у которых есть permit или последние tap'ы).
+      security:
+        - SessionToken: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/CourierAvailableItem"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /api/v1/app/courier/download:
+    post:
+      tags: [app-courier]
+      summary: Скачать filter package
+      description: |
+        Возвращает байты filter package'а (header+bloom+whitelist+blacklist
+        delta+подпись сервера) и `filter_version`. Приложение кладёт их
+        локально в Room (PendingFilterDelivery, status="downloaded") и
+        доставит при ближайшем tap'е через FILTER_UPDATE-операцию.
+
+        После успешной доставки и applied'а ридером, приложение возвращает
+        delivery_receipt через `/app/reports/submit` → сервер закрывает
+        delivery task.
+      security:
+        - SessionToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CourierDownloadRequest"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CourierDownloadResponse"}
+        "400": {description: "no_device_registered"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {description: "wrong_group"}
+        "404": {description: "delivery_not_found / delivery_closed"}
+
+  # ===================================================================
+  # APP / REPORTS
+  # ===================================================================
+  /api/v1/app/reports/submit:
+    post:
+      tags: [app-reports]
+      summary: Загрузить отчёты с ридера
+      description: |
+        Батч из отчётов, собранных приложением во время tap'ов:
+        - **delivery_receipt** — ридер подтвердил приём filter package'а;
+          сервер закроет соответствующий delivery_task и проверит подпись
+          ридера.
+        - **filter_delivery_info (FDI)** — короткий live-снимок состояния
+          ридера (filter_version, время, blacklist_count). Используется для
+          проверки/обновления `last_known_time`, `last_applied_filter_version`
+          и для финализации pending admin-revoke (Phase 2 — если все ключи
+          permit'а уже `is_active=False`, выставляется `permit.revoked_at`).
+        - **blacklist_report** — содержимое blacklist'а ридера (envelope с
+          marker `0x94`); сервер сверяет с собственным состоянием.
+
+        Возвращает `accepted` (списком report_id) и `rejected` (с причинами
+        отказа: `unknown_type`, `invalid_base64`, `too_short`,
+        `invalid_reader_id_hex`, `reader_not_found`).
+      security:
+        - SessionToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReportsRequest"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ReportsResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  # ===================================================================
+  # APP / MY-DATA
+  # ===================================================================
+  /api/v1/app/my-data:
+    get:
+      tags: [app-my-data]
+      summary: Сводный профиль пользователя
+      description: |
+        Один-в-один экран «Мои данные» в приложении: профиль, список permit'ов
+        с раскрытыми reader-полями, список зарегистрированных устройств.
+
+        Выгоднее одного запроса /me + N запросов /permits + /readers, потому
+        что Android UI рисуется одним redraw'ом.
+      security:
+        - SessionToken: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MyData"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  # ===================================================================
+  # ADMIN / USERS
+  # ===================================================================
+  /api/v1/admin/users:
+    post:
+      tags: [admin-users]
+      summary: Создать пользователя
+      description: |
+        Заводит запись User (логин/пароль/display_name/user_group). Пароль
+        хешируется (argon2/bcrypt). На дубликат логина — **409 login_taken**.
+      security:
+        - AdminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateUserRequest"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: {type: integer}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "409": {description: "login_taken"}
+    get:
+      tags: [admin-users]
+      summary: Список пользователей
+      description: Постраничный список всех пользователей (cursor-offset).
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/AdminUser"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+
+  /api/v1/admin/users/{user_id}:
+    get:
+      tags: [admin-users]
+      summary: Подробности пользователя
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: user_id, in: path, required: true, schema: {type: integer}}
+      responses:
+        "200":
+          description: OK
+          content: {application/json: {schema: {$ref: "#/components/schemas/AdminUser"}}}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "user_not_found"}
+    patch:
+      tags: [admin-users]
+      summary: Изменить пользователя
+      description: |
+        Меняет `display_name`, `user_group_id` или `is_active`. При
+        `is_active=false` все активные сессии пользователя отзываются.
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: user_id, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PatchUserRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/Ok"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "user_not_found"}
+
+  /api/v1/admin/users/{user_id}/reset-password:
+    post:
+      tags: [admin-users]
+      summary: Сбросить пароль
+      description: Заменяет пароль пользователя; refresh-токены не инвалидируются автоматически.
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: user_id, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_password]
+              properties:
+                new_password: {type: string}
+      responses:
+        "200": {$ref: "#/components/responses/Ok"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "user_not_found"}
+
+  # ===================================================================
+  # ADMIN / READERS
+  # ===================================================================
+  /api/v1/admin/readers/enroll:
+    post:
+      tags: [admin-readers]
+      summary: Enroll нового ридера
+      description: |
+        Регистрирует ESP32-ридер: его 16-байтный `reader_id`, Ed25519 pubkey
+        и группу. В ответе сервер возвращает свои Ed25519/X25519 pubkey'и —
+        прошивка должна сохранить их (обычно через provisioning UART), чтобы
+        дальше валидировать подписи серверных артефактов (filter package,
+        time-grant, и т.д.).
+      security:
+        - AdminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EnrollReaderRequest"}
+      responses:
+        "200":
+          description: OK
+          content: {application/json: {schema: {$ref: "#/components/schemas/EnrollReaderResponse"}}}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "group_not_found"}
+        "409": {description: "reader_id_exists"}
+        "422": {description: "invalid hex / wrong byte length"}
+
+  /api/v1/admin/readers:
+    get:
+      tags: [admin-readers]
+      summary: Список ридеров
+      description: |
+        Постраничный список ридеров с базовой телеметрией: время последнего
+        контакта, последняя применённая версия фильтра. Может фильтроваться
+        по `group_id`.
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {name: group_id, in: query, required: false, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/AdminReader"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+
+  /api/v1/admin/readers/{reader_id_hex}:
+    get:
+      tags: [admin-readers]
+      summary: Подробности ридера
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: reader_id_hex, in: path, required: true, schema: {$ref: "#/components/schemas/ReaderIdHex"}}
+      responses:
+        "200":
+          description: OK
+          content: {application/json: {schema: {$ref: "#/components/schemas/AdminReaderDetail"}}}
+        "400": {description: "invalid hex"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "reader_not_found"}
+    patch:
+      tags: [admin-readers]
+      summary: Изменить ридер
+      description: Меняет display_name, description, reader_group_id или is_active.
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: reader_id_hex, in: path, required: true, schema: {$ref: "#/components/schemas/ReaderIdHex"}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PatchReaderRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/Ok"}
+        "400": {description: "invalid hex"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "reader_not_found"}
+
+  # ===================================================================
+  # ADMIN / READER GROUPS
+  # ===================================================================
+  /api/v1/admin/reader-groups:
+    post:
+      tags: [admin-reader-groups]
+      summary: Создать группу ридеров
+      security:
+        - AdminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string}
+                description: {type: string, nullable: true}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  group_id: {type: string, format: uuid}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+    get:
+      tags: [admin-reader-groups]
+      summary: Список групп ридеров
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/ReaderGroup"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+
+  /api/v1/admin/reader-groups/{group_id}:
+    patch:
+      tags: [admin-reader-groups]
+      summary: Изменить группу
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: group_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: {type: string}
+                description: {type: string, nullable: true}
+      responses:
+        "200": {$ref: "#/components/responses/Ok"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "group_not_found"}
+    delete:
+      tags: [admin-reader-groups]
+      summary: Удалить группу
+      description: |
+        Удаляет группу. Если в группе есть ридеры — **409 group_has_readers**.
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: group_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200": {$ref: "#/components/responses/Ok"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "group_not_found"}
+        "409": {description: "group_has_readers"}
+
+  # ===================================================================
+  # ADMIN / PERMITS
+  # ===================================================================
+  /api/v1/admin/permits:
+    post:
+      tags: [admin-permits]
+      summary: Создать permit
+      description: |
+        Создаёт permit для пары (`user_id`, `reader_id`). В permit'е
+        фиксируются: окно валидности, лимит параллельных ключей
+        (`n_parallel`), и максимальный TTL ключа в секундах
+        (`max_token_ttl_seconds`).
+      security:
+        - AdminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreatePermitRequest"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permit_id: {type: string, format: uuid}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "user_not_found / reader_not_found"}
+        "422": {description: "invalid reader_id hex"}
+    get:
+      tags: [admin-permits]
+      summary: Список permit'ов
+      description: |
+        Постраничный список с производным полем `status`:
+        - **active** — `revoke_initiated_at == NULL`
+        - **revoking** — Phase 1 admin-revoke: `revoke_initiated_at` стоит,
+          но `revoked_at == NULL` (ждём пока ридер применит свежий bloom и
+          ключи станут `is_active=False`).
+        - **revoked** — финализирован, `revoked_at != NULL`.
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {name: user_id, in: query, required: false, schema: {type: integer}}
+        - {name: reader_id, in: query, required: false, schema: {type: string, description: "hex"}}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/AdminPermitListItem"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+
+  /api/v1/admin/permits/{permit_id}:
+    get:
+      tags: [admin-permits]
+      summary: Подробности permit'а + список ключей
+      description: |
+        Кроме самого permit'а возвращает массив всех `keys` (с `is_active`,
+        `status`) и агрегат `active_keys_count` — нужно чтобы понимать,
+        почему "revoking" ещё не финализировался.
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: permit_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminPermitDetail"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "permit_not_found"}
+    patch:
+      tags: [admin-permits]
+      summary: Изменить permit
+      description: |
+        Меняет атрибуты permit'а (display_name, description, n_parallel,
+        max_token_ttl_seconds). Не меняет `valid_from`/`valid_until` — для
+        этого надо отозвать и выпустить новый.
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: permit_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PatchPermitRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/Ok"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "permit_not_found"}
+
+  /api/v1/admin/permits/{permit_id}/revoke:
+    post:
+      tags: [admin-permits]
+      summary: Admin-revoke permit'а (двухфазный)
+      description: |
+        **Phase 1 (синхронный):**
+        - Все active-ключи permit'а помечаются `revoked_by_server`
+          (`is_active` остаётся True пока ридер не применил bloom).
+        - Все time-grant'ы permit'а отзываются.
+        - Если active-ключей не было → permit финализируется сразу
+          (`revoked_at = now`, status `"revoked"`).
+        - Иначе permit входит в состояние **revoking**: ставится
+          `revoke_initiated_at = now`, но `revoked_at = NULL`.
+        - Для каждого затронутого ридера планируется фоновая задача
+          `generate_filter` (debounced).
+
+        **Phase 2 (асинхронный, через `process_delivery_receipt` /
+        `process_fdi_blob`):**
+        - Когда ключи переходят `revoked_by_server → revoked_in_bloom`
+          (`is_active=False`), сервер прогоняет `finalize_pending_revokes`
+          по затронутому ридеру: permit'ы с active=0 финализируются
+          (`revoked_at = now`).
+
+        Ответ возвращает текущий статус (`revoking` или `revoked`), чтобы
+        админский UI мог отрисовать «отзыв в процессе».
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: permit_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: {type: boolean}
+                  status: {type: string, enum: [active, revoking, revoked]}
+                  revoke_initiated_at: {type: string, format: date-time, nullable: true}
+                  revoked_at: {type: string, format: date-time, nullable: true}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "permit_not_found"}
+
+  # ===================================================================
+  # ADMIN / KEYS
+  # ===================================================================
+  /api/v1/admin/keys:
+    get:
+      tags: [admin-keys]
+      summary: Список выпущенных ключей
+      description: |
+        Постраничный список ключей с фильтрами (`permit_id`, `user_id`,
+        `status`). Используется в админ-UI для аудита.
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {name: permit_id, in: query, required: false, schema: {type: string, format: uuid}}
+        - {name: user_id, in: query, required: false, schema: {type: integer}}
+        - {name: status, in: query, required: false, schema: {type: string}, description: "active | revoked_by_server | revoked_by_reader | revoked_in_bloom | expired"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/AdminKeyListItem"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+
+  /api/v1/admin/keys/{key_id}:
+    get:
+      tags: [admin-keys]
+      summary: Подробности ключа
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: key_id, in: path, required: true, schema: {type: string, description: "hex"}}
+      responses:
+        "200":
+          description: OK
+          content: {application/json: {schema: {$ref: "#/components/schemas/AdminKeyDetail"}}}
+        "400": {description: "invalid hex"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "key_not_found"}
+
+  /api/v1/admin/keys/{key_id}/revoke:
+    post:
+      tags: [admin-keys]
+      summary: Принудительный admin-revoke одного ключа
+      description: |
+        Идентичен пользовательскому revoke по эффекту (status →
+        `revoked_by_server`), но не требует ownership и пишет audit-log.
+        Триггерит generate_filter для ридера.
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: key_id, in: path, required: true, schema: {type: string, description: "hex"}}
+      responses:
+        "200": {$ref: "#/components/responses/Ok"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "key_not_found"}
+
+  # ===================================================================
+  # ADMIN / API KEYS
+  # ===================================================================
+  /api/v1/admin/api-keys:
+    post:
+      tags: [admin-api-keys]
+      summary: Создать API-ключ
+      description: |
+        Возвращает **plaintext** API-ключ ОДИН РАЗ — клиент обязан сохранить
+        его сразу. На сервере хранится только SHA256-хеш и `key_prefix` для
+        опознания.
+
+        `kind`: `"admin"` (полный доступ) или `"integration"` (зарезервировано).
+      security:
+        - AdminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateApiKeyRequest"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CreateApiKeyResponse"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "422": {description: "invalid kind"}
+    get:
+      tags: [admin-api-keys]
+      summary: Список API-ключей
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/AdminApiKeyListItem"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+
+  /api/v1/admin/api-keys/{api_key_id}/revoke:
+    post:
+      tags: [admin-api-keys]
+      summary: Отозвать API-ключ
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: api_key_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200": {$ref: "#/components/responses/Ok"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+
+  # ===================================================================
+  # ADMIN / OBSERVABILITY
+  # ===================================================================
+  /api/v1/admin/readers/{reader_id_hex}/delivery-status:
+    get:
+      tags: [admin-observability]
+      summary: Состояние доставки фильтров на ридер
+      description: |
+        Срез по доставке: текущая версия фильтра на сервере, последняя
+        применённая на ридере, открытые delivery-tasks, их возраст,
+        last_contact_at и time-drift. Используется для диагностики «почему
+        revoke не финализируется» / «ридер давно не на связи».
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {name: reader_id_hex, in: path, required: true, schema: {$ref: "#/components/schemas/ReaderIdHex"}}
+      responses:
+        "200":
+          description: OK
+          content: {application/json: {schema: {$ref: "#/components/schemas/ReaderDeliveryStatus"}}}
+        "400": {description: "invalid hex"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+        "404": {description: "reader_not_found"}
+
+  /api/v1/admin/background-tasks:
+    get:
+      tags: [admin-observability]
+      summary: Очередь фоновых задач
+      description: |
+        Постраничный список фоновых задач (`generate_filter`,
+        `process_delivery_receipt`, `process_fdi_blob`, `finalize_revoke`,
+        ...). Фильтр по `status`. Полезно для отладки очереди и
+        обнаружения «застрявших».
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {name: status, in: query, required: false, schema: {type: string}, description: "pending | in_progress | completed | failed"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/BackgroundTask"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+
+  /api/v1/admin/audit-log:
+    get:
+      tags: [admin-observability]
+      summary: Audit log
+      description: |
+        Все admin-действия: кто (`actor_id` API-key UUID), какое действие
+        (`create_user`, `enroll_reader`, `admin_revoke_permit`, ...), над
+        каким объектом, и сериализованные `details`. Фильтры по `actor_id`
+        и `target_type`.
+      security:
+        - AdminApiKey: []
+      parameters:
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {name: actor_id, in: query, required: false, schema: {type: string, format: uuid}}
+        - {name: target_type, in: query, required: false, schema: {type: string}, description: "user | reader | permit | api_key | reader_group | issued_key"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/AuditLogEntry"}
+        "401": {$ref: "#/components/responses/AdminUnauthorized"}
+
+# =====================================================================
+# COMPONENTS
+# =====================================================================
+components:
+  securitySchemes:
+    SessionToken:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: |
+        `Authorization: Bearer <session_token>` — выдаётся `/auth/login` или
+        `/auth/refresh`. Хранится на сервере в таблице sessions, валидируется
+        каждый запрос (revoked_at IS NULL, expires_at > now).
+    AdminApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: |
+        `X-Api-Key: <plaintext>` — выдаётся `/admin/api-keys` один раз при
+        создании. На сервере хранится только SHA256-хеш + `key_prefix`.
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema: {type: integer, minimum: 0, default: 0}
+      description: Offset для пагинации.
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+
+  responses:
+    Ok:
+      description: OK
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Ok"}
+    Unauthorized:
+      description: missing_token / invalid_token / user_inactive
+    AdminUnauthorized:
+      description: missing_api_key / invalid_api_key / api_key_expired
+
+  schemas:
+    Ok:
+      type: object
+      properties:
+        ok: {type: boolean, example: true}
+
+    ErrorDetail:
+      type: object
+      description: |
+        FastAPI стандартный формат — `{"detail": ...}`. detail может быть
+        строкой (`"not_owner"`) или объектом (`{"error": "ttl_too_long",
+        "max": 86400}`).
+      properties:
+        detail:
+          oneOf:
+            - {type: string}
+            - {type: object}
+
+    ReaderIdHex:
+      type: string
+      pattern: "^[0-9a-fA-F]{32}$"
+      description: 16-байтный reader_id в hex (32 символа).
+      example: "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+
+    # ----- AUTH -----
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login: {type: string}
+        password: {type: string}
+        device_info:
+          type: object
+          properties:
+            model: {type: string}
+            os: {type: string}
+            app_version: {type: string}
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: {type: string}
+
+    RegisterDeviceRequest:
+      type: object
+      required: [phone_pubkey]
+      properties:
+        phone_pubkey:
+          type: string
+          description: Ed25519 pubkey телефона, base64 (32 байта).
+        device_label:
+          type: string
+          nullable: true
+
+    AuthTokens:
+      type: object
+      properties:
+        session_token: {type: string}
+        refresh_token: {type: string}
+        user_id: {type: integer}
+        user_group_id: {type: string, format: uuid}
+        display_name: {type: string}
+
+    # ----- READERS -----
+    ReaderPublic:
+      type: object
+      properties:
+        reader_id: {type: string, description: "hex"}
+        display_name: {type: string}
+        description: {type: string, nullable: true}
+        reader_pubkey: {type: string, description: "base64, 32 bytes"}
+        group_id: {type: string, format: uuid}
+
+    AdminReader:
+      type: object
+      properties:
+        reader_id: {type: string, description: "hex"}
+        display_name: {type: string}
+        description: {type: string, nullable: true}
+        reader_group_id: {type: string, format: uuid}
+        is_active: {type: boolean}
+        enrolled_at: {type: string, format: date-time}
+        last_contact_at: {type: string, format: date-time, nullable: true}
+        last_applied_filter_version: {type: integer}
+
+    AdminReaderDetail:
+      allOf:
+        - {$ref: "#/components/schemas/AdminReader"}
+        - type: object
+          properties:
+            last_known_time: {type: string, format: date-time, nullable: true}
+            open_delivery_tasks_count: {type: integer}
+
+    PatchReaderRequest:
+      type: object
+      properties:
+        display_name: {type: string}
+        description: {type: string, nullable: true}
+        reader_group_id: {type: string, format: uuid}
+        is_active: {type: boolean}
+
+    EnrollReaderRequest:
+      type: object
+      required: [reader_id, reader_pubkey, reader_group_id, display_name]
+      properties:
+        reader_id: {$ref: "#/components/schemas/ReaderIdHex"}
+        reader_pubkey: {type: string, description: "base64, 32 bytes Ed25519"}
+        reader_group_id: {type: string, format: uuid}
+        display_name: {type: string}
+        description: {type: string, nullable: true}
+
+    EnrollReaderResponse:
+      type: object
+      properties:
+        reader_id: {type: string}
+        server_ed25519_pubkey: {type: string, description: "base64, 32 bytes"}
+        server_x25519_pubkey: {type: string, description: "base64, 32 bytes"}
+        reader_group_id: {type: string, format: uuid}
+
+    ReaderGroup:
+      type: object
+      properties:
+        group_id: {type: string, format: uuid}
+        name: {type: string}
+        description: {type: string, nullable: true}
+        created_at: {type: string, format: date-time}
+
+    # ----- USERS (ADMIN) -----
+    CreateUserRequest:
+      type: object
+      required: [login, password, display_name, user_group_id]
+      properties:
+        login: {type: string}
+        password: {type: string}
+        display_name: {type: string}
+        user_group_id: {type: string, format: uuid}
+
+    AdminUser:
+      type: object
+      properties:
+        user_id: {type: integer}
+        login: {type: string}
+        display_name: {type: string}
+        user_group_id: {type: string, format: uuid}
+        is_active: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    PatchUserRequest:
+      type: object
+      properties:
+        display_name: {type: string}
+        user_group_id: {type: string, format: uuid}
+        is_active: {type: boolean}
+
+    # ----- PERMITS (APP) -----
+    PermitListItem:
+      type: object
+      properties:
+        permit_id: {type: string, format: uuid}
+        display_name: {type: string}
+        description: {type: string, nullable: true}
+        reader_id: {type: string, description: "hex"}
+        reader_display_name: {type: string}
+        valid_from: {type: string, format: date-time}
+        valid_until: {type: string, format: date-time}
+        n_parallel: {type: integer}
+        max_token_ttl_seconds: {type: integer}
+        active_keys_count: {type: integer}
+        has_grant_for_device: {type: boolean}
+
+    IssuedKeyAppView:
+      type: object
+      properties:
+        key_id: {type: string, description: "hex"}
+        device_id: {type: string, format: uuid}
+        device_label: {type: string, nullable: true}
+        is_current_device: {type: boolean}
+        issued_at: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time}
+        status: {type: string, description: "active | revoked_by_server | revoked_by_reader | revoked_in_bloom | expired"}
+        full_key_bytes: {type: string, description: "base64"}
+
+    # ----- KEYS (APP) -----
+    KeyRequest:
+      type: object
+      required: [permit_id, validity_seconds]
+      properties:
+        permit_id: {type: string, format: uuid}
+        validity_seconds: {type: integer, minimum: 1}
+        request_grant: {type: boolean, default: false}
+        issued_at_ts:
+          type: integer
+          nullable: true
+          description: Unix-секунды; None = now. Поддержка future-dated ключей.
+
+    KeyResponse:
+      type: object
+      properties:
+        issued_key:
+          type: object
+          properties:
+            key_id: {type: string, description: "hex"}
+            full_key_bytes: {type: string, description: "base64"}
+            issued_at: {type: string, format: date-time}
+            expires_at: {type: string, format: date-time}
+        time_grant:
+          type: object
+          nullable: true
+          properties:
+            grant_id: {type: string, format: uuid}
+            full_grant_bytes: {type: string, description: "base64"}
+            expires_at: {type: string, format: date-time}
+
+    # ----- COURIER -----
+    CourierAvailableItem:
+      type: object
+      properties:
+        delivery_id: {type: string, format: uuid}
+        target_reader_id: {type: string, description: "hex"}
+        filter_version: {type: integer}
+        created_at: {type: string, format: date-time}
+
+    CourierDownloadRequest:
+      type: object
+      required: [delivery_id]
+      properties:
+        delivery_id: {type: string, format: uuid}
+
+    CourierDownloadResponse:
+      type: object
+      properties:
+        delivery_id: {type: string, format: uuid}
+        target_reader_id: {type: string, description: "hex"}
+        filter_version: {type: integer}
+        filter_package_bytes: {type: string, description: "base64 (header+bloom+whitelist+blacklist+sig)"}
+        courier_id: {type: string}
+
+    # ----- REPORTS -----
+    ReportsRequest:
+      type: object
+      required: [reports]
+      properties:
+        reports:
+          type: array
+          items:
+            type: object
+            required: [type, target_reader_id, bytes]
+            properties:
+              type: {type: string, enum: [delivery_receipt, filter_delivery_info, blacklist_report]}
+              target_reader_id: {type: string, description: "hex"}
+              bytes: {type: string, description: "base64"}
+
+    ReportsResponse:
+      type: object
+      properties:
+        accepted:
+          type: array
+          items: {type: string, format: uuid}
+        rejected:
+          type: array
+          items:
+            type: object
+            properties:
+              index: {type: integer}
+              reason: {type: string}
+
+    # ----- MY-DATA -----
+    MyData:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            user_id: {type: integer}
+            display_name: {type: string}
+            user_group_id: {type: string, format: uuid}
+        permits:
+          type: array
+          items:
+            type: object
+            properties:
+              permit_id: {type: string, format: uuid}
+              display_name: {type: string}
+              reader:
+                type: object
+                properties:
+                  reader_id: {type: string}
+                  display_name: {type: string}
+                  group_id: {type: string, format: uuid}
+              valid_from: {type: string, format: date-time}
+              valid_until: {type: string, format: date-time}
+              n_parallel: {type: integer}
+              max_token_ttl_seconds: {type: integer}
+              active_keys_count: {type: integer}
+              has_grant_on_this_device: {type: boolean}
+        devices:
+          type: array
+          items:
+            type: object
+            properties:
+              device_id: {type: string, format: uuid}
+              device_label: {type: string, nullable: true}
+              registered_at: {type: string, format: date-time}
+              is_current: {type: boolean}
+
+    # ----- PERMITS (ADMIN) -----
+    CreatePermitRequest:
+      type: object
+      required: [user_id, reader_id, display_name, valid_from, valid_until]
+      properties:
+        user_id: {type: integer}
+        reader_id: {type: string, description: "hex"}
+        display_name: {type: string}
+        description: {type: string, nullable: true}
+        valid_from: {type: string, format: date-time}
+        valid_until: {type: string, format: date-time}
+        n_parallel: {type: integer, default: 1, minimum: 1}
+        max_token_ttl_seconds: {type: integer, default: 86400, minimum: 1}
+
+    PatchPermitRequest:
+      type: object
+      properties:
+        display_name: {type: string}
+        description: {type: string, nullable: true}
+        n_parallel: {type: integer, minimum: 1}
+        max_token_ttl_seconds: {type: integer, minimum: 1}
+
+    AdminPermitListItem:
+      type: object
+      properties:
+        permit_id: {type: string, format: uuid}
+        user_id: {type: integer}
+        reader_id: {type: string, description: "hex"}
+        display_name: {type: string}
+        valid_from: {type: string, format: date-time}
+        valid_until: {type: string, format: date-time}
+        n_parallel: {type: integer}
+        status: {type: string, enum: [active, revoking, revoked]}
+        revoke_initiated_at: {type: string, format: date-time, nullable: true}
+        revoked_at: {type: string, format: date-time, nullable: true}
+
+    AdminPermitDetail:
+      allOf:
+        - {$ref: "#/components/schemas/AdminPermitListItem"}
+        - type: object
+          properties:
+            description: {type: string, nullable: true}
+            max_token_ttl_seconds: {type: integer}
+            active_keys_count: {type: integer}
+            keys:
+              type: array
+              items:
+                type: object
+                properties:
+                  key_id: {type: string, description: "hex"}
+                  status: {type: string}
+                  is_active: {type: boolean}
+                  issued_at: {type: string, format: date-time}
+                  expires_at: {type: string, format: date-time}
+
+    # ----- KEYS (ADMIN) -----
+    AdminKeyListItem:
+      type: object
+      properties:
+        key_id: {type: string, description: "hex"}
+        permit_id: {type: string, format: uuid}
+        status: {type: string}
+        issued_at: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time}
+        revoked_at: {type: string, format: date-time, nullable: true}
+
+    AdminKeyDetail:
+      allOf:
+        - {$ref: "#/components/schemas/AdminKeyListItem"}
+        - type: object
+          properties:
+            reader_id: {type: string, description: "hex"}
+            device_id: {type: string, format: uuid}
+            serial: {type: integer}
+            revoke_reason: {type: string, nullable: true}
+            committed_filter_version: {type: integer, nullable: true}
+            full_key_bytes: {type: string, description: "base64"}
+
+    # ----- API KEYS -----
+    CreateApiKeyRequest:
+      type: object
+      required: [name, kind]
+      properties:
+        name: {type: string}
+        kind: {type: string, enum: [admin, integration]}
+        expires_at: {type: string, format: date-time, nullable: true}
+
+    CreateApiKeyResponse:
+      type: object
+      properties:
+        api_key_id: {type: string, format: uuid}
+        plaintext: {type: string, description: "Возвращается ОДИН раз."}
+        key_prefix: {type: string}
+        name: {type: string}
+        expires_at: {type: string, format: date-time, nullable: true}
+
+    AdminApiKeyListItem:
+      type: object
+      properties:
+        api_key_id: {type: string, format: uuid}
+        key_prefix: {type: string}
+        kind: {type: string, enum: [admin, integration]}
+        name: {type: string}
+        created_at: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time, nullable: true}
+        last_used_at: {type: string, format: date-time, nullable: true}
+        revoked_at: {type: string, format: date-time, nullable: true}
+
+    # ----- OBSERVABILITY -----
+    ReaderDeliveryStatus:
+      type: object
+      properties:
+        reader_id: {type: string, description: "hex"}
+        last_applied_filter_version: {type: integer}
+        current_server_version: {type: integer}
+        open_delivery_tasks:
+          type: array
+          items:
+            type: object
+            properties:
+              task_id: {type: string, format: uuid}
+              filter_version: {type: integer}
+              created_at: {type: string, format: date-time}
+              age_hours: {type: number}
+        last_contact_at: {type: string, format: date-time, nullable: true}
+        last_known_time: {type: string, format: date-time, nullable: true}
+        time_drift_seconds: {type: integer, nullable: true}
+
+    BackgroundTask:
+      type: object
+      properties:
+        task_id: {type: string, format: uuid}
+        task_type: {type: string}
+        status: {type: string, enum: [pending, in_progress, completed, failed]}
+        payload: {type: object}
+        scheduled_at: {type: string, format: date-time}
+        started_at: {type: string, format: date-time, nullable: true}
+        completed_at: {type: string, format: date-time, nullable: true}
+        error: {type: string, nullable: true}
+        retry_count: {type: integer}
+
+    AuditLogEntry:
+      type: object
+      properties:
+        audit_id: {type: integer}
+        occurred_at: {type: string, format: date-time}
+        actor_type: {type: string, enum: [api_key, system]}
+        actor_id: {type: string, format: uuid, nullable: true}
+        action: {type: string}
+        target_type: {type: string}
+        target_id: {type: string}
+        details: {type: object, nullable: true}

@@ -1,0 +1,45 @@
+# --- Python (Backend) ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# --- Secrets / env (NEVER commit) — .env.example is the only tracked template ---
+.env
+.env.*
+!.env.example
+Backend/.env
+Backend/.env.*
+!Backend/.env.example
+# TLS material mounted into the nginx side-car
+Backend/deploy/certs/
+
+# --- PlatformIO build (ESP32 firmware) ---
+.pio/
+
+# --- .NET build (Desktop provisioner) ---
+Desktop/**/bin/
+Desktop/**/obj/
+
+# --- Android / Gradle build ---
+AndroidApp/**/build/
+AndroidApp/.gradle/
+AndroidApp/local.properties
+AndroidApp/.idea/
+
+# --- Research / scratch artifacts (not source) ---
+Backend/*.png
+Backend/scratch_*.py
+
+# --- IDE / tooling local config (not source) ---
+**/.idea/
+**/.vscode/
+**/.claude/settings.local.json
+.claude/*.lock
+
+# --- OS noise ---
+.DS_Store
+Thumbs.db
+desktop.ini

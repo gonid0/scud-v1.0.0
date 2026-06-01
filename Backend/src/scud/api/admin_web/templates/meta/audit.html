@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Audit log</h1>
+
+<p class="text-sm text-slate-500 mb-4">
+    Лог админ-действий: создание/изменение/удаление сущностей. Append-only,
+    редактирование запрещено. Используется для расследования инцидентов и
+    compliance-аудита.
+</p>
+
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+            <tr>
+                <th class="text-left px-3 py-2">Когда</th>
+                <th class="text-left px-3 py-2">Actor</th>
+                <th class="text-left px-3 py-2">Действие</th>
+                <th class="text-left px-3 py-2">Target</th>
+                <th class="text-left px-3 py-2">Детали</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for e in entries %}
+            {% set actor = actors_map.get(e.actor_id) %}
+            <tr class="border-t hover:bg-slate-50 align-top">
+                <td class="px-3 py-2 mono text-xs whitespace-nowrap">{{ e.occurred_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+                <td class="px-3 py-2 text-xs">
+                    {{ actor.name if actor else e.actor_id }}
+                    <div class="text-slate-400 mono">{{ actor.key_prefix if actor else '' }}</div>
+                </td>
+                <td class="px-3 py-2 text-xs font-medium">{{ e.action }}</td>
+                <td class="px-3 py-2 text-xs">
+                    {% if e.target_type %}
+                        <span class="text-slate-500">{{ e.target_type }}</span>
+                        <span class="mono">{{ e.target_id }}</span>
+                    {% endif %}
+                </td>
+                <td class="px-3 py-2 text-xs text-slate-500">
+                    {% if e.details %}
+                    <pre class="mono whitespace-pre-wrap break-all">{{ e.details }}</pre>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500 text-sm">Лог пуст.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if next_cursor %}
+<div class="mt-4 text-right">
+    <a class="text-blue-600 hover:underline text-sm" href="/admin/audit?cursor={{ next_cursor }}">Следующая →</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,274 @@
+<resources>
+    <!-- App / system (shown by the OS, follow system locale) -->
+    <string name="hce_service_description">HCE контроля доступа СКУД</string>
+    <string name="hce_aid_group">Доступ SCUD</string>
+
+    <!-- Language selection (settings) -->
+    <string name="settings_language">Язык</string>
+
+    <!-- Common / shared -->
+    <string name="common_ok">OK</string>
+    <string name="common_cancel">Отмена</string>
+    <string name="common_close">Закрыть</string>
+    <string name="common_done">Готово</string>
+    <string name="common_confirm">Подтвердить</string>
+    <string name="common_delete">Удалить</string>
+    <string name="common_error">Ошибка</string>
+    <string name="common_back">Назад</string>
+    <string name="common_loading">Загрузка…</string>
+    <string name="common_logout">Выйти</string>
+    <string name="common_empty">—</string>
+
+    <!-- Bottom navigation tabs -->
+    <string name="nav_home">Главная</string>
+    <string name="nav_permits">Пропуски</string>
+    <string name="nav_keys">Ключи</string>
+    <string name="nav_tasks">Задачи</string>
+    <string name="nav_settings">Настройки</string>
+
+    <!-- Auth screen -->
+    <string name="auth_subtitle">Контроль доступа</string>
+    <string name="auth_server_label">Сервер (домен или ip:port)</string>
+    <string name="auth_login_label">Логин</string>
+    <string name="auth_password_label">Пароль</string>
+    <string name="auth_loading_button">Вход…</string>
+    <string name="auth_submit_button">Войти</string>
+    <string name="auth_security_notice">В целях безопасности сессия действует ограниченное время.</string>
+    <string name="auth_empty_fields_error">Заполните все поля</string>
+    <string name="auth_generic_error">Ошибка входа</string>
+
+    <!-- Home screen -->
+    <string name="home_greeting_prefix">Здравствуйте,</string>
+    <string name="home_hero_title">Готов к проходу</string>
+    <string name="home_hero_subtitle">Приложите телефон к ридеру или нажмите «Начать»</string>
+    <string name="home_start_nfc_button">Начать сессию NFC</string>
+    <string name="home_stat_permits">Пропусков</string>
+    <string name="home_stat_keys">Ключей</string>
+    <string name="home_stat_outgoing">На сервер</string>
+    <string name="home_stat_reader">На ридер</string>
+    <string name="home_quick_actions_title">Быстрые действия</string>
+    <string name="home_quick_action_permits_title">Мои пропуска</string>
+    <string name="home_quick_action_permits_subtitle">Просмотр permits и аннулирование</string>
+    <string name="home_quick_action_keys_title">Мои ключи</string>
+    <string name="home_quick_action_keys_subtitle">Активные и архив</string>
+    <string name="home_quick_action_tasks_title">Очереди</string>
+    <string name="home_quick_action_tasks_subtitle">Не отправленные отчёты и задачи</string>
+    <!-- Home: секция «Устройства рядом» (BLE) -->
+    <string name="home_nearby_title">Устройства рядом</string>
+    <string name="home_nearby_empty_hint">Подойдите к ридеру — устройства поблизости появятся здесь.</string>
+    <string name="home_nearby_scanning">Поиск устройств поблизости…</string>
+    <string name="home_nearby_has_key">Ключ</string>
+    <string name="home_nearby_no_key">Нет ключа</string>
+    <string name="home_nearby_has_deliveries">Посылки</string>
+    <string name="home_nearby_no_deliveries">Нет посылок</string>
+    <string name="home_nearby_grant_permissions">Разрешить Bluetooth</string>
+
+    <!-- Keys screen -->
+    <string name="keys_title">Ключи</string>
+    <string name="keys_revoke_via_server">Через сервер</string>
+    <string name="keys_revoke_via_reader">Через READER</string>
+    <string name="keys_delete_from_archive">Удалить из архива</string>
+    <string name="keys_active_count">Занято: %1$d / %2$d</string>
+    <string name="keys_slot_pending_bloom">Отозванный ключ занимает слот, пока ридер не применит следующее обновление bloom-фильтра.</string>
+    <string name="keys_archived_count">архив: %1$d</string>
+    <string name="keys_lifetime_range">%1$s → %2$s</string>
+    <string name="keys_total_issued_limited">Действующих: %1$d / %2$d</string>
+    <string name="keys_total_issued_unlimited">Действующих: %1$d / ∞</string>
+    <string name="keys_request_new_key">Запросить новый ключ</string>
+    <string name="keys_filter_active">Активные (%1$d)</string>
+    <string name="keys_filter_all">Все (%1$d)</string>
+    <string name="keys_clear_archive">Очистить архив</string>
+    <string name="keys_empty_title">Ключей нет</string>
+    <string name="keys_empty_subtitle_with_permit">Запросите ключ для этого пропуска — он будет выпущен сервером и привязан к этому устройству.</string>
+    <string name="keys_empty_subtitle_no_permit">Ключи выпускаются автоматически из ваших пропусков. Сначала откройте пропуск.</string>
+    <string name="keys_swipe_revoke_reader">Через READER</string>
+    <string name="keys_swipe_revoke_server">Через сервер</string>
+    <string name="keys_swipe_delete">Удалить</string>
+    <string name="keys_badge_this_phone">Этот телефон</string>
+    <string name="keys_badge_primary">Выбран для тапа</string>
+    <string name="keys_status_expired">Истёк</string>
+    <string name="keys_status_pending_activation">Активируется позже</string>
+    <string name="keys_status_active">Активен</string>
+    <string name="keys_status_revoked_server">Отозван сервером</string>
+    <string name="keys_status_revoked_reader">Отозван ридером</string>
+    <string name="keys_status_revoked_bloom">В bloom-фильтре</string>
+    <string name="keys_dialog_new_key_title">Новый ключ</string>
+    <string name="keys_dialog_start_label">Начало действия:</string>
+    <string name="keys_dialog_end_label">Окончание:</string>
+    <string name="keys_dialog_duration">Длительность: %1$s (макс %2$s)</string>
+    <string name="keys_duration_days_hours">%1$dд %2$dч</string>
+    <string name="keys_duration_hours_mins">%1$dч %2$dм</string>
+    <string name="keys_duration_mins">%1$dм</string>
+    <string name="keys_dialog_request_button">Запросить</string>
+    <string name="keys_dialog_date_next">Далее → время</string>
+    <string name="keys_dialog_time_start_title">Время начала</string>
+    <string name="keys_dialog_time_end_title">Время окончания</string>
+    <string name="keys_dialog_confirm_revoke_server_title">Отозвать через сервер</string>
+    <string name="keys_dialog_revoke_server_subtitle">%1$d ключ(а). Сервер помечает ключ как revoked_by_server. Ридер перестанет его принимать после доставки нового bloom-фильтра.</string>
+    <string name="keys_dialog_confirm_revoke_reader_title">Отозвать через READER</string>
+    <string name="keys_dialog_revoke_reader_subtitle">%1$d ключ(а). Отзыв доставится при следующем тапе телефона к ридеру.</string>
+    <string name="keys_dialog_revoke_type_title">Тип отзыва</string>
+    <string name="keys_dialog_revoke_type_message">Что произойдёт при следующем касании этого ридера.</string>
+    <string name="keys_revoke_type_access_and_revoke">Пропуск и отзыв</string>
+    <string name="keys_revoke_type_revoke_only">Только отзыв</string>
+    <string name="keys_dialog_confirm_purge_title">Очистить архив</string>
+    <string name="keys_dialog_purge_subtitle">Будут удалены все отозванные и истёкшие ключи из локальной памяти. Это не влияет на сервер или ридер.</string>
+
+    <!-- Permits list screen -->
+    <string name="permits_title">Пропуска</string>
+    <string name="permits_refresh_cd">Обновить</string>
+    <string name="permits_sort_cd">Сортировка</string>
+    <string name="permits_revoke_selected">Аннулировать (%1$d)</string>
+    <string name="permits_search_placeholder">Поиск по названию</string>
+    <string name="permits_filter_only_empty">Только без ключей</string>
+    <string name="permits_error">Ошибка: %1$s</string>
+    <string name="permits_empty_search_title">Ничего не найдено</string>
+    <string name="permits_empty_title">Пропусков пока нет</string>
+    <string name="permits_empty_search_subtitle">Попробуйте другой запрос или сбросьте фильтры</string>
+    <string name="permits_empty_subtitle">Permits выдаются администратором. Попросите выдать вам пропуск на нужный ридер.</string>
+    <string name="permits_select_all">Выбрать все</string>
+    <string name="permits_status_expired">истёк</string>
+    <string name="permits_status_expiring">скоро истекает</string>
+    <string name="permits_status_no_key">нет ключа</string>
+    <string name="permits_status_active">активен</string>
+    <string name="permits_keys_count">%1$d/%2$d ключей</string>
+    <string name="permits_valid_until">До %1$s</string>
+    <string name="permits_sort_expires_asc">По сроку (раньше)</string>
+    <string name="permits_sort_expires_desc">По сроку (позже)</string>
+    <string name="permits_sort_keys_asc">По числу ключей ↑</string>
+    <string name="permits_sort_keys_desc">По числу ключей ↓</string>
+    <string name="permits_revoke_dialog_title">Аннулировать пропуска?</string>
+    <string name="permits_revoke_dialog_message">Действие необратимо. Будут аннулированы:</string>
+    <string name="permits_revoke_dialog_item">• %1$s</string>
+    <string name="permits_revoke_confirm">Аннулировать</string>
+
+    <!-- Permit detail screen -->
+    <string name="permit_detail_valid_until">Действует до %1$s</string>
+    <string name="permit_detail_parallel">Параллельно: %1$d / %2$d</string>
+    <string name="permit_detail_max_ttl">Max TTL: %1$dс</string>
+    <string name="permit_detail_open_keys">Ключи этого пропуска</string>
+
+    <!-- Tasks / queues screen -->
+    <string name="tasks_title">Очереди</string>
+    <string name="tasks_tab_server">На сервер</string>
+    <string name="tasks_tab_reader">На ридер</string>
+    <string name="tasks_target_reader">Ридер: %1$s…</string>
+    <string name="tasks_retries">Попыток: %1$d</string>
+    <string name="tasks_group_filter_delivery">Доставка фильтра</string>
+    <string name="tasks_type_filter_delivery_info">Информация о фильтре</string>
+    <string name="tasks_type_delivery_receipt">Квитанция о доставке</string>
+    <string name="tasks_type_passage_receipt">Квитанция о проходе</string>
+    <string name="tasks_type_blacklist_report">Отчёт об отзыве</string>
+    <string name="tasks_submit_all_button">Отправить все (%1$d)</string>
+    <string name="tasks_submit_result">Принято %1$d, отклонено %2$d</string>
+    <string name="tasks_empty_server_title">Очередь пуста</string>
+    <string name="tasks_empty_server_subtitle">Здесь появятся отчёты (FDI, BLK, passage), которые ждут отправки на сервер.</string>
+    <string name="tasks_refresh_loading">Обновление…</string>
+    <string name="tasks_refresh_button">Обновить список с сервера</string>
+    <string name="tasks_empty_reader_title">Нет посылок для ридера</string>
+    <string name="tasks_empty_reader_subtitle">Нажмите «Обновить», чтобы получить с сервера актуальные filter-обновления.</string>
+    <string name="tasks_revokes_section_title">Отзывы ключей</string>
+    <string name="tasks_revoke_card_title">Отозвать ключ</string>
+    <string name="tasks_downloaded_icon_description">Готова к отправке</string>
+    <string name="tasks_downloaded_for_reader">Для %1$s…</string>
+    <string name="tasks_downloaded_subtitle">v%1$d · готов к тапу на ридер</string>
+    <string name="tasks_downloadable_subtitle">v%1$d · доступна для скачивания</string>
+    <string name="tasks_download_button">Скачать</string>
+    <string name="tasks_refresh_error">Не удалось обновить: %1$s</string>
+    <string name="tasks_download_error">Скачивание не удалось: %1$s</string>
+
+    <!-- BLE readers screen -->
+    <string name="ble_readers_title">Активные устройства поблизости</string>
+    <string name="ble_readers_not_supported">BLE не поддерживается на этом устройстве</string>
+    <string name="ble_readers_disabled">Bluetooth выключен — включите в настройках</string>
+    <string name="ble_readers_missing_permissions">Не хватает разрешений: %1$s</string>
+    <string name="ble_readers_scanning">Сканирование…</string>
+    <string name="ble_readers_scan_button">Сканировать</string>
+    <string name="ble_readers_empty_hint">Подойдите к шлагбауму/турникету. Устройства появятся здесь.</string>
+    <string name="ble_readers_device_name_fallback">SCUD-%1$s</string>
+    <string name="ble_readers_device_details">short_id: %1$s   RSSI: %2$d dBm</string>
+    <string name="ble_readers_open_button">Открыть</string>
+    <string name="ble_readers_error_unavailable">BLE недоступен или выключен</string>
+    <string name="ble_readers_error_permissions">Нужны BLUETOOTH_SCAN / CONNECT</string>
+
+    <!-- BLE session screen -->
+    <string name="ble_session_title">BLE сессия</string>
+    <string name="ble_session_idle_message">Готов к подключению…</string>
+    <string name="ble_session_connecting_message">Подключение и обмен MTU…</string>
+    <string name="ble_session_reader_info">Ридер: %1$s…</string>
+    <string name="ble_session_reader_name">Ридер: %1$s</string>
+    <string name="ble_session_reader_id">ID: %1$s…</string>
+    <string name="ble_session_reader_verified">✔ Личность подтверждена (подпись)</string>
+    <string name="ble_session_reader_unverified">⚠ Ридер не подтверждён — убедитесь, что приложили телефон к нему</string>
+    <string name="ble_session_confirm_prompt">Подтвердите, что вы у этого ридера, прежде чем открыть:</string>
+    <string name="ble_session_key_info">Доступный ключ: %1$s…</string>
+    <string name="ble_session_expiry">Истекает: %1$s</string>
+    <string name="ble_session_grant_access_button">Открыть</string>
+    <string name="ble_session_no_key_message">На этом телефоне нет активного ключа для ридера %1$s…\nЗапросите permit у админа.</string>
+    <string name="ble_session_success">✅ Доступ разрешён</string>
+    <string name="ble_session_denied">⛔ %1$s</string>
+    <string name="ble_session_receipt_captured">Квитанция о проходе сохранена для синхронизации с сервером.</string>
+    <string name="ble_session_receipt_not_captured">Квитанция не получена.</string>
+    <string name="ble_session_error">Ошибка: %1$s</string>
+    <string name="ble_session_sending_access">ACCESS…</string>
+    <string name="ble_session_fetching_receipt">Получаем passage receipt…</string>
+    <string name="ble_session_error_connect">connect: %1$s</string>
+    <string name="ble_session_error_access">access: %1$s</string>
+    <string name="ble_session_error_reader_mismatch">Ответил другой ридер — прерываем. Убедитесь, что вы у нужного ридера.</string>
+    <string name="ble_session_start_button">Начать</string>
+    <string name="ble_session_running_ops">Выполняем операции…</string>
+    <string name="ble_session_actions_summary">Будет выполнено: %1$s</string>
+    <string name="ble_session_action_access">проход</string>
+    <string name="ble_session_action_delivery">доставка фильтра</string>
+    <string name="ble_session_action_revoke">отзыв ключа</string>
+    <string name="ble_session_nothing_to_do">Нет ключа и нет посылок для этого ридера %1$s…</string>
+    <string name="ble_session_done">Готово: %1$d операций.</string>
+
+    <!-- Tap (NFC) screen and tap status -->
+    <string name="tap_waiting_prompt">Поднесите телефон к READER</string>
+    <string name="tap_log_title">Лог (%1$d)</string>
+    <string name="tap_log_clear">Очистить</string>
+    <string name="tap_log_empty">— пусто —</string>
+    <string name="log_copy">Копировать</string>
+    <string name="log_clear">Очистить</string>
+    <string name="log_copied">Лог скопирован</string>
+    <string name="tap_exchanging_with_reader">Обмен с READER…</string>
+    <string name="tap_unknown_reader">Неизвестный ридер</string>
+    <string name="tap_time_expired">Время истекло</string>
+    <string name="tap_connection_lost">Связь с ридером потеряна</string>
+    <string name="tap_door_opened">Дверь открыта</string>
+    <string name="tap_denied">Отказ: %1$s</string>
+    <string name="tap_done">Готово</string>
+    <string name="tap_session_completed">Сессия завершена</string>
+    <!-- Полноэкранный оверлей tap-сессии (как в Google Pay), всплывает по тапу,
+         когда внутренний экран Tap не на переднем плане. -->
+    <string name="tap_overlay_channel_name">Сессии доступа</string>
+    <string name="tap_overlay_channel_desc">Показывает сессию с ридером, которая начинается при поднесении телефона</string>
+    <string name="tap_overlay_session_title">Сессия доступа</string>
+    <string name="tap_overlay_connecting">Соединение с ридером…</string>
+    <string name="tap_overlay_hold">Держите телефон у ридера</string>
+    <!-- Блок времени ридера (окна NFC + BLE): текущее время ридера и его отклонение. -->
+    <string name="reader_time_title">Время ридера</string>
+    <string name="reader_time_drift">Отклонение: %1$s</string>
+    <string name="reader_time_vs_phone">относительно часов телефона</string>
+    <string name="reader_time_unit_sec">с</string>
+    <string name="reader_time_unit_min">мин</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_section_accounts">Аккаунты</string>
+    <string name="settings_add_account">Добавить аккаунт</string>
+    <string name="settings_account_active">Активный аккаунт</string>
+    <string name="settings_copied">Скопировано</string>
+    <string name="settings_section_account">Учётная запись</string>
+    <string name="settings_login_label">Логин</string>
+    <string name="settings_server_label">Сервер</string>
+    <string name="settings_device_id_label">Device ID</string>
+    <string name="settings_section_about">О приложении</string>
+    <string name="settings_version_label">Версия</string>
+    <string name="settings_protocol_label">Протокол</string>
+    <string name="settings_about_description">SCUD — оффлайн-СКУД. Телефон передаёт пакеты между сервером и ридером через NFC tap или BLE.</string>
+    <string name="settings_logout_button">Выйти из аккаунта</string>
+    <string name="settings_logout_confirm_title">Выйти из аккаунта?</string>
+    <string name="settings_logout_confirm_message">Все локальные данные (ключи, очереди, кэш) будут удалены с устройства. Сами permits и история на сервере останутся.</string>
+</resources>

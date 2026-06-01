@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   ANDROID-06: Auto Backup отключён глобально (android:allowBackup="false").
+   Эти правила — defense-in-depth для API 31+: Room-БД scud.db (подписанные
+   ключи + offline-очереди) исключаем как из cloud-backup, так и из
+   device-to-device transfer.
+   См. https://developer.android.com/about/versions/12/backup-restore#xml-changes
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="scud.db" />
+        <exclude domain="database" path="scud.db-wal" />
+        <exclude domain="database" path="scud.db-shm" />
+        <exclude domain="database" path="scud.db-journal" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="scud.db" />
+        <exclude domain="database" path="scud.db-wal" />
+        <exclude domain="database" path="scud.db-shm" />
+        <exclude domain="database" path="scud.db-journal" />
+    </device-transfer>
+</data-extraction-rules>

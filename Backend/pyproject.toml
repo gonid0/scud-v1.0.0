@@ -1,0 +1,62 @@
+[project]
+name = "scud-backend"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "sqlalchemy[asyncio]>=2.0",
+    "alembic>=1.13",
+    "asyncpg>=0.29",
+    "pynacl>=1.5",
+    "argon2-cffi>=23.1",
+    "mmh3>=4.1",
+    "pydantic>=2.5",
+    "pydantic-settings>=2.1",
+    "python-multipart>=0.0.9",
+    "jinja2>=3.1",
+    "itsdangerous>=2.1",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+    "aiosqlite>=0.20",
+    "anyio>=4.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Jinja2-шаблоны admin web-панели — это data-файлы, а не Python-модули; без
+# этого блока установленный пакет (Docker image / `pip install .`) не содержит
+# templates/*.html, и каждая страница /admin/* падает с TemplateNotFound -> 500.
+[tool.setuptools.package-data]
+"scud.api.admin_web" = ["templates/*.html", "templates/**/*.html", "static/**/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Один общий event loop на сессию (фикстуры + тесты): session-scoped движок БД
+# должен жить в том же loop, что и тесты — иначе pytest-asyncio 1.x роняет
+# второй postgres-тест ("Future attached to a different loop").
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+markers = [
+    "postgres: concurrency-sensitive tests requiring a real PostgreSQL backend (FOR UPDATE SKIP LOCKED, row-locks, JSONB). Auto-skipped on the default sqlite engine; run in the CI backend-postgres job via SCUD_TEST_DATABASE_URL.",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

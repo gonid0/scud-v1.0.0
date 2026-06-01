@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ reader.display_name }}{% endblock %}
+{% block content %}
+<a href="/admin/readers" class="text-sm text-blue-600 hover:underline">← Все ридеры</a>
+
+<div class="flex items-start justify-between mt-2 mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ reader.display_name }}</h1>
+        <div class="text-sm text-slate-500 mt-1">
+            <span class="mono text-xs">{{ reader.reader_id.hex() }}</span>
+        </div>
+        {% if reader.description %}
+        <p class="text-sm text-slate-600 mt-2">{{ reader.description }}</p>
+        {% endif %}
+    </div>
+    <div>
+        <form method="post" action="/admin/readers/{{ reader.reader_id.hex() }}/toggle-active">
+            <button class="bg-slate-200 hover:bg-slate-300 text-slate-900 px-3 py-1 rounded text-sm">
+                {{ 'Деактивировать' if reader.is_active else 'Активировать' }}
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white rounded-lg shadow p-5">
+        <h2 class="font-semibold mb-3">Состояние</h2>
+        <dl class="text-sm divide-y">
+            <div class="py-2 flex justify-between">
+                <dt class="text-slate-500">Группа</dt>
+                <dd>{% if group %}<a href="/admin/reader-groups" class="hover:underline">{{ group.name }}</a>{% else %}—{% endif %}</dd>
+            </div>
+            <div class="py-2 flex justify-between">
+                <dt class="text-slate-500">filter_version</dt>
+                <dd class="mono">{{ reader.last_applied_filter_version }}</dd>
+            </div>
+            <div class="py-2 flex justify-between">
+                <dt class="text-slate-500">Последний контакт</dt>
+                <dd class="mono text-xs">
+                    {% if reader.last_contact_at %}{{ reader.last_contact_at.strftime("%Y-%m-%d %H:%M") }}{% else %}никогда{% endif %}
+                </dd>
+            </div>
+            <div class="py-2 flex justify-between">
+                <dt class="text-slate-500">Известное reader_time</dt>
+                <dd class="mono text-xs">
+                    {% if reader.last_known_time %}{{ reader.last_known_time.strftime("%Y-%m-%d %H:%M") }}{% else %}—{% endif %}
+                </dd>
+            </div>
+            <div class="py-2 flex justify-between">
+                <dt class="text-slate-500">Open delivery tasks</dt>
+                <dd class="mono">{{ open_tasks }}</dd>
+            </div>
+            <div class="py-2 flex justify-between">
+                <dt class="text-slate-500">Проходов всего</dt>
+                <dd class="mono">{{ passages_total }}</dd>
+            </div>
+            <div class="py-2 flex justify-between">
+                <dt class="text-slate-500">Enrolled</dt>
+                <dd class="mono text-xs">{{ reader.enrolled_at.strftime("%Y-%m-%d") }}</dd>
+            </div>
+        </dl>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-5">
+        <h2 class="font-semibold mb-3">Server-side ключи (отдать в firmware)</h2>
+        <p class="text-xs text-slate-500 mb-3">
+            Эти pubkey'и нужно прошить в ридер на этапе provisioning'а через CLI.
+            Privkey'и хранятся только в БД сервера, наружу не отдаются.
+        </p>
+        <div class="space-y-3 text-sm">
+            <div>
+                <div class="text-xs text-slate-500">server_ed25519_pubkey (base64)</div>
+                <code class="mono text-xs break-all bg-slate-100 px-2 py-1 rounded block">{{ server_ed_pub_b64 }}</code>
+            </div>
+            <div>
+                <div class="text-xs text-slate-500">server_x25519_pubkey (base64)</div>
+                <code class="mono text-xs break-all bg-slate-100 px-2 py-1 rounded block">{{ server_x_pub_b64 }}</code>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white rounded-lg shadow p-5 mt-6">
+    <div class="flex justify-between items-center mb-3">
+        <h2 class="font-semibold">Последние проходы на этом ридере</h2>
+        <a class="text-xs text-blue-600 hover:underline"
+           href="/admin/passages?reader_id={{ reader.reader_id.hex() }}">Все ({{ passages_total }}) →</a>
+    </div>
+    {% if recent_passages %}
+    <table class="w-full text-sm">
+        <thead class="text-xs uppercase text-slate-500 border-b">
+            <tr><th class="text-left py-1">Время</th><th>user_id</th><th>key_id</th><th>session_seq</th></tr>
+        </thead>
+        <tbody>
+        {% for p in recent_passages %}
+            <tr class="border-b last:border-0">
+                <td class="py-1 mono text-xs">{{ p.passed_at.strftime("%Y-%m-%d %H:%M") }}</td>
+                <td class="text-center">
+                    {% if p.user_id %}<a href="/admin/users/{{ p.user_id }}" class="text-blue-600 hover:underline">{{ p.user_id }}</a>{% else %}—{% endif %}
+                </td>
+                <td class="text-center mono text-xs">{{ p.key_id.hex()[:12] }}…</td>
+                <td class="text-center mono text-xs">{{ p.session_seq }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p class="text-sm text-slate-500">Проходов на этом ридере пока нет.</p>
+    {% endif %}
+</div>
+{% endblock %}

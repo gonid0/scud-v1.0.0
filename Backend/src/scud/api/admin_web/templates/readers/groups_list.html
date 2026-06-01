@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Группы ридеров{% endblock %}
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-semibold">Группы ридеров</h1>
+    <a href="/admin/reader-groups/new" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded text-sm font-medium">
+        + Новая группа
+    </a>
+</div>
+
+<p class="text-sm text-slate-500 mb-4">
+    Группа ридеров — логический контейнер (этаж, здание, корпус). Каждый ридер
+    обязан принадлежать одной группе. В дальнейшем используется для массовой
+    выдачи permits.
+</p>
+
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+            <tr>
+                <th class="text-left px-3 py-2">Название</th>
+                <th class="text-left px-3 py-2">Описание</th>
+                <th class="text-left px-3 py-2">Ридеров</th>
+                <th class="text-left px-3 py-2">Создана</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for g in groups %}
+            <tr class="border-t hover:bg-slate-50">
+                <td class="px-3 py-2 font-medium">{{ g.name }}</td>
+                <td class="px-3 py-2 text-slate-600">{{ g.description or '—' }}</td>
+                <td class="px-3 py-2">
+                    <a href="/admin/readers?group_id={{ g.group_id }}"
+                       class="text-blue-600 hover:underline">
+                        {{ reader_counts.get(g.group_id, 0) }}
+                    </a>
+                </td>
+                <td class="px-3 py-2 mono text-xs text-slate-500">{{ g.created_at.strftime("%Y-%m-%d") }}</td>
+                <td class="px-3 py-2 text-right">
+                    {% if reader_counts.get(g.group_id, 0) == 0 %}
+                    <form method="post" action="/admin/reader-groups/{{ g.group_id }}/delete" class="inline"
+                          onsubmit="return confirm('Удалить группу {{ g.name }}?')">
+                        <button class="text-xs text-rose-600 hover:underline">удалить</button>
+                    </form>
+                    {% else %}
+                    <span class="text-xs text-slate-400" title="Сначала перенесите ридеры">— занята</span>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500 text-sm">Нет групп.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

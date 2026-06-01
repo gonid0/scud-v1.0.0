@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:ScudProvisioner.ViewModels"
+             xmlns:m="clr-namespace:ScudProvisioner.Models"
+             x:Class="ScudProvisioner.Views.TemplatesPage"
+             x:DataType="vm:TemplatesViewModel"
+             Title="Templates">
+    <ContentPage.Resources>
+        <!-- One row of the param editor: numeric Entry, bool Switch, or enum Picker. -->
+        <DataTemplate x:Key="ParamRow" x:DataType="vm:ParamRowViewModel">
+            <Grid ColumnDefinitions="*,160" ColumnSpacing="12" Padding="0,6">
+                <VerticalStackLayout Grid.Column="0" Spacing="0">
+                    <Label Text="{Binding Label}" FontSize="14" />
+                    <Label Text="{Binding RangeHint}" FontSize="11"
+                           TextColor="{StaticResource OnSurfaceMuted}" />
+                </VerticalStackLayout>
+
+                <Entry Grid.Column="1"
+                       Text="{Binding ValueText}"
+                       Keyboard="Numeric"
+                       HorizontalTextAlignment="End"
+                       IsVisible="{Binding IsNumeric}" />
+
+                <Switch Grid.Column="1"
+                        IsToggled="{Binding BoolValue}"
+                        HorizontalOptions="End"
+                        IsVisible="{Binding IsBool}" />
+
+                <Picker Grid.Column="1"
+                        ItemsSource="{Binding EnumOptions}"
+                        SelectedItem="{Binding SelectedEnum}"
+                        IsVisible="{Binding IsEnum}" />
+            </Grid>
+        </DataTemplate>
+    </ContentPage.Resources>
+
+    <Grid Padding="24" RowDefinitions="Auto,*">
+
+        <!-- Header: template picker + lifecycle actions -->
+        <VerticalStackLayout Grid.Row="0" Spacing="0">
+            <Label Text="Config template library" FontSize="22" FontAttributes="Bold" Margin="0,0,0,4" />
+            <Label Text="Each template is a named set of per-reader SET-* values mirroring the firmware reader_config.cpp CFG[] table. The active template is sent in full during provisioning."
+                   FontSize="13"
+                   TextColor="{StaticResource OnSurfaceMuted}"
+                   Margin="0,0,0,12" />
+
+            <Label Text="Template" Style="{StaticResource FieldLabel}" />
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+                <Picker Grid.Column="0"
+                        ItemsSource="{Binding Templates}"
+                        ItemDisplayBinding="{Binding Name, x:DataType=m:DeviceConfigTemplate}"
+                        SelectedItem="{Binding SelectedTemplate}" />
+                <Button Grid.Column="1" Text="Save" Command="{Binding SaveCommand}" />
+                <Button Grid.Column="2" Text="Delete"
+                        BackgroundColor="{StaticResource Danger}"
+                        Command="{Binding DeleteCommand}" />
+                <Button Grid.Column="3" Text="Set active"
+                        BackgroundColor="Transparent"
+                        TextColor="{StaticResource Primary}"
+                        Command="{Binding SetActiveCommand}" />
+            </Grid>
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                <VerticalStackLayout Grid.Column="0">
+                    <Label Text="Device type" Style="{StaticResource FieldLabel}" />
+                    <Entry Text="{Binding DeviceType}" Placeholder="door_mains" />
+                </VerticalStackLayout>
+                <VerticalStackLayout Grid.Column="1">
+                    <Label Text="Save as (new name)" Style="{StaticResource FieldLabel}" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Entry Grid.Column="0" Text="{Binding NewName}" Placeholder="ESP32 exit reader" />
+                        <Button Grid.Column="1" Text="Save As…"
+                                BackgroundColor="Transparent"
+                                TextColor="{StaticResource Primary}"
+                                Command="{Binding SaveAsCommand}" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Grid>
+
+            <Label Text="{Binding ActiveName, StringFormat='Active template: {0}'}"
+                   FontSize="12"
+                   TextColor="{StaticResource OnSurfaceMuted}"
+                   Margin="0,8,0,0" />
+            <Label Text="{Binding Status}" TextColor="{StaticResource Success}" Margin="0,2,0,8" />
+        </VerticalStackLayout>
+
+        <!-- Body: params grouped by tier -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Spacing="0">
+
+                <Label Text="Security 🔒 (coordinate with backend policy)"
+                       FontSize="16" FontAttributes="Bold" Margin="0,8,0,4" />
+                <CollectionView ItemsSource="{Binding SecurityParams}"
+                                ItemTemplate="{StaticResource ParamRow}"
+                                SelectionMode="None" />
+
+                <Label Text="Operational"
+                       FontSize="16" FontAttributes="Bold" Margin="0,16,0,4" />
+                <CollectionView ItemsSource="{Binding OpsParams}"
+                                ItemTemplate="{StaticResource ParamRow}"
+                                SelectionMode="None" />
+
+                <Label Text="Hardware / interop timings"
+                       FontSize="16" FontAttributes="Bold" Margin="0,16,0,4" />
+                <CollectionView ItemsSource="{Binding HardwareParams}"
+                                ItemTemplate="{StaticResource ParamRow}"
+                                SelectionMode="None" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

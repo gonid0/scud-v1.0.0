@@ -1,0 +1,58 @@
+# Production overlay над docker-compose.yml.
+#
+# Применить:
+#   docker compose --env-file .env.prod \
+#     -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Делает: убирает bind-mounts (код только из image), убирает экспозицию портов
+# Postgres наружу, ужесточает resource limits, добавляет nginx-reverse-proxy
+# (TLS termination + rate-limit), отключает hot-reload bind в /app/src.
+
+services:
+  postgres:
+    # Не публикуем 5432 наружу — Postgres доступен только внутри scud_net.
+    ports: !reset null
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  app:
+    # bind-mount источника убираем — в prod исходники зашиты в образ.
+    volumes: !override []
+    command: uvicorn scud.main:app --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers --forwarded-allow-ips=*
+    # Внутрь сети доступен по имени app:8000. Внешний доступ — через nginx.
+    ports: !reset null
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  worker:
+    volumes: !override []
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # TLS termination + статика + rate limit.
+  # cert/key монтируются с хоста, в prod рекомендуется certbot+letsencrypt
+  # через side-car (или закрепить .pem в secrets).
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/certs:/etc/nginx/certs:ro
+    restart: unless-stopped
+    networks: [scud_net]

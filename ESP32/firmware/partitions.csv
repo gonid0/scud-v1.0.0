@@ -1,0 +1,7 @@
+# Partition table for 4 MB flash. См. docs/02_firmware_spec §4.
+# Name,    Type, SubType,  Offset,   Size,      Flags
+nvs,       data, nvs,      0x9000,   0x6000,
+phy_init,  data, phy,      0xf000,   0x1000,
+factory,   app,  factory,  0x10000,  0x180000,
+filter,    data, spiffs,   0x190000, 0x40000,
+state,     data, nvs,      0x1D0000, 0x10000,

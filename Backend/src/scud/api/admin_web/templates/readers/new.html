@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Enroll reader{% endblock %}
+{% block content %}
+<div class="max-w-2xl">
+    <h1 class="text-2xl font-semibold mb-2">Enroll ридера</h1>
+    <a href="/admin/readers" class="text-sm text-blue-600 hover:underline">← К списку</a>
+
+    <div class="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded p-3 mt-4">
+        <b>Шаги до enrollment:</b>
+        <ol class="list-decimal pl-5 mt-1 space-y-1">
+            <li>Прошить ридер firmware (платой ESP32 + PN532) — это даёт <code>reader_id</code> и <code>reader_pubkey</code>.</li>
+            <li>Считать их через Desktop/ScudProvisioner (provisioning CLI печатает их в stdout).</li>
+            <li>Заполнить форму ниже. Сервер сгенерирует server-side ключи и вернёт их для прошивки ридера.</li>
+        </ol>
+    </div>
+
+    <form method="post" action="/admin/readers/enroll" class="bg-white rounded-lg shadow p-6 mt-4 space-y-4">
+        <div>
+            <label class="block text-sm font-medium mb-1">reader_id (hex, 32 символа)</label>
+            <input name="reader_id_hex" required minlength="32" maxlength="32" pattern="[0-9a-fA-F]{32}"
+                   class="w-full px-3 py-2 border border-slate-300 rounded text-sm mono">
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">reader_pubkey (base64, 32 байта)</label>
+            <input name="reader_pubkey_b64" required
+                   class="w-full px-3 py-2 border border-slate-300 rounded text-sm mono">
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">Группа</label>
+            <select name="reader_group_id" required class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+                {% for g in groups %}
+                    <option value="{{ g.group_id }}">{{ g.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">Название</label>
+            <input name="display_name" required maxlength="128"
+                   class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">Описание</label>
+            <textarea name="description" rows="2"
+                      class="w-full px-3 py-2 border border-slate-300 rounded text-sm"></textarea>
+        </div>
+        <button class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded font-medium">Enroll</button>
+    </form>
+</div>
+{% endblock %}

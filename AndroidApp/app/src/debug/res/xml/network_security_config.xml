@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   DEBUG-ONLY override (merge: src/debug заменяет src/main в debug-сборке).
+
+   Android Network Security Config НЕ поддерживает подсети/CIDR/маски в <domain> —
+   только конкретные хосты/IP. Выразить «весь 192.168.x.x» точечно невозможно.
+   Поэтому в DEBUG-сборке разрешаем cleartext (http) ШИРОКО, чтобы реальный телефон
+   ходил на dev-backend по ЛЮБОМУ LAN-IP (192.168.*, 10.*, и т.д.) без правок.
+
+   RELEASE-сборка этот файл НЕ видит — использует строгий src/main/.../network_security_config.xml
+   (https-only). На API 24+ base-config cleartextTrafficPermitted имеет приоритет
+   над android:usesCleartextTraffic="false" из манифеста.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

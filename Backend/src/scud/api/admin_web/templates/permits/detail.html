@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ permit.display_name }}{% endblock %}
+{% block content %}
+<a href="/admin/permits" class="text-sm text-blue-600 hover:underline">← Все permits</a>
+
+<div class="flex items-start justify-between mt-2 mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ permit.display_name }}</h1>
+        <div class="text-sm text-slate-500 mt-1 mono">{{ permit.permit_id }}</div>
+    </div>
+    <div>
+        {% if status == 'active' %}
+            <span class="text-emerald-700 bg-emerald-50 px-3 py-1 rounded text-sm mr-2">active</span>
+            <form method="post" action="/admin/permits/{{ permit.permit_id }}/revoke" class="inline"
+                  onsubmit="return confirm('Запустить admin-revoke этого permit?\n\nЭто двухфазный процесс: ключи помечаются revoked_by_server, а финализация (revoked_at) случится после применения bloom-фильтра на ридере.')">
+                <button class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded text-sm">Revoke</button>
+            </form>
+        {% elif status == 'revoking' %}
+            <span class="text-amber-700 bg-amber-50 px-3 py-1 rounded text-sm">revoking…</span>
+            <div class="text-xs text-slate-500 mt-1">
+                Ждём пока ридер применит фильтр и поднимет статус ключей.
+            </div>
+        {% else %}
+            <span class="text-slate-500 bg-slate-100 px-3 py-1 rounded text-sm">revoked</span>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-lg shadow p-5">
+        <h2 class="font-semibold mb-3">Параметры</h2>
+        <dl class="text-sm divide-y">
+            <div class="py-2 flex justify-between">
+                <dt class="text-slate-500">Пользователь</dt>
+                <dd>{% if user %}<a href="/admin/users/{{ user.user_id }}" class="text-blue-600 hover:underline">{{ user.display_name }}</a>{% else %}u#{{ permit.user_id }}{% endif %}</dd>
+            </div>
+            <div class="py-2 flex justify-between">
+                <dt class="text-slate-500">Ридер</dt>
+                <dd>{% if reader %}<a href="/admin/readers/{{ reader.reader_id.hex() }}" class="text-blue-600 hover:underline">{{ reader.display_name }}</a>{% endif %}</dd>
+            </div>
+            <div class="py-2 flex justify-between"><dt class="text-slate-500">Срок</dt>
+                <dd class="text-xs mono">{{ permit.valid_from.strftime("%Y-%m-%d %H:%M") }} → {{ permit.valid_until.strftime("%Y-%m-%d %H:%M") }}</dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-slate-500">n_parallel</dt>
+                <dd class="mono">{{ permit.n_parallel }}</dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-slate-500">max_token_ttl</dt>
+                <dd class="mono">{{ permit.max_token_ttl_seconds // 3600 }} ч</dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-slate-500">Описание</dt>
+                <dd class="text-sm text-slate-600">{{ permit.description or '—' }}</dd></div>
+        </dl>
+    </div>
+    <div class="bg-white rounded-lg shadow p-5">
+        <h2 class="font-semibold mb-3">Лог состояний</h2>
+        <ul class="text-sm space-y-1">
+            <li>· <span class="mono text-xs">created_at</span> = {{ permit.created_at.strftime("%Y-%m-%d %H:%M") }}</li>
+            {% if permit.revoke_initiated_at %}
+            <li>· <span class="mono text-xs">revoke_initiated_at</span> = {{ permit.revoke_initiated_at.strftime("%Y-%m-%d %H:%M") }}</li>
+            {% endif %}
+            {% if permit.revoked_at %}
+            <li>· <span class="mono text-xs">revoked_at</span> = {{ permit.revoked_at.strftime("%Y-%m-%d %H:%M") }}</li>
+            {% endif %}
+        </ul>
+        <p class="text-xs text-slate-500 mt-3">
+            Активных ключей сейчас: <b>{{ active_count }}</b> / {{ keys|length }} всего.
+        </p>
+    </div>
+</div>
+
+<div class="bg-white rounded-lg shadow p-5">
+    <h2 class="font-semibold mb-3">Issued keys ({{ keys|length }})</h2>
+    {% if keys %}
+    <table class="w-full text-sm">
+        <thead class="text-xs uppercase text-slate-500 border-b">
+            <tr><th class="text-left py-1">key_id</th><th>Статус</th><th>Срок</th><th>Revoked at</th></tr>
+        </thead>
+        <tbody>
+        {% for k in keys %}
+            <tr class="border-b last:border-0">
+                <td class="py-1 mono text-xs"><a href="/admin/keys/{{ k.key_id.hex() }}" class="text-blue-600 hover:underline">{{ k.key_id.hex()[:16] }}…</a></td>
+                <td class="text-xs">
+                    {% if k.status == 'active' %}<span class="text-emerald-700">active</span>
+                    {% elif k.status == 'revoked_by_server' %}<span class="text-amber-700">revoked_by_server</span>
+                    {% elif k.status == 'revoked_by_reader' %}<span class="text-rose-700">revoked_by_reader</span>
+                    {% elif k.status == 'revoked_in_bloom' %}<span class="text-slate-500">revoked_in_bloom</span>
+                    {% else %}<span class="text-slate-500">{{ k.status }}</span>{% endif %}
+                </td>
+                <td class="text-xs mono">{{ k.expires_at.strftime("%Y-%m-%d") }}</td>
+                <td class="text-xs mono">{% if k.revoked_at %}{{ k.revoked_at.strftime("%Y-%m-%d %H:%M") }}{% else %}—{% endif %}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p class="text-sm text-slate-500">Phone'ы ещё не запрашивали ключ по этому permit.</p>
+    {% endif %}
+</div>
+{% endblock %}

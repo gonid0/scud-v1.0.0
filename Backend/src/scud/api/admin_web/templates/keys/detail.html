@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Key {{ key.key_id.hex()[:8] }}{% endblock %}
+{% block content %}
+<a href="/admin/keys" class="text-sm text-blue-600 hover:underline">← Все keys</a>
+
+<div class="flex items-start justify-between mt-2 mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">Issued key</h1>
+        <div class="mono text-xs text-slate-500 mt-1 break-all">{{ key.key_id.hex() }}</div>
+    </div>
+    <div>
+        {% if key.status in ['active', 'revoked_by_server'] %}
+        <form method="post" action="/admin/keys/{{ key.key_id.hex() }}/revoke" class="inline"
+              onsubmit="return confirm('Force-revoke этого ключа?')">
+            <button class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded text-sm">Revoke (server)</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="bg-white rounded-lg shadow p-5">
+    <dl class="text-sm divide-y">
+        <div class="py-2 flex justify-between"><dt class="text-slate-500">Статус</dt><dd>{{ key.status }}</dd></div>
+        <div class="py-2 flex justify-between"><dt class="text-slate-500">Permit</dt>
+            <dd>{% if permit %}<a class="text-blue-600 hover:underline" href="/admin/permits/{{ permit.permit_id }}">{{ permit.display_name }}</a>{% endif %}</dd>
+        </div>
+        <div class="py-2 flex justify-between"><dt class="text-slate-500">Пользователь</dt>
+            <dd>{% if user %}<a class="text-blue-600 hover:underline" href="/admin/users/{{ user.user_id }}">{{ user.display_name }}</a>{% endif %}</dd>
+        </div>
+        <div class="py-2 flex justify-between"><dt class="text-slate-500">Ридер</dt>
+            <dd>{% if reader %}<a class="text-blue-600 hover:underline" href="/admin/readers/{{ reader.reader_id.hex() }}">{{ reader.display_name }}</a>{% endif %}</dd>
+        </div>
+        <div class="py-2 flex justify-between"><dt class="text-slate-500">Устройство (label)</dt>
+            <dd>{% if device %}{{ device.device_label or device.device_id }}{% endif %}</dd>
+        </div>
+        <div class="py-2 flex justify-between"><dt class="text-slate-500">serial</dt><dd class="mono">{{ key.serial }}</dd></div>
+        <div class="py-2 flex justify-between"><dt class="text-slate-500">issued_at</dt><dd class="mono text-xs">{{ key.issued_at.strftime("%Y-%m-%d %H:%M") }}</dd></div>
+        <div class="py-2 flex justify-between"><dt class="text-slate-500">expires_at</dt><dd class="mono text-xs">{{ key.expires_at.strftime("%Y-%m-%d %H:%M") }}</dd></div>
+        {% if key.revoked_at %}
+        <div class="py-2 flex justify-between"><dt class="text-slate-500">revoked_at</dt><dd class="mono text-xs">{{ key.revoked_at.strftime("%Y-%m-%d %H:%M") }}</dd></div>
+        {% endif %}
+        <div class="py-2 flex justify-between"><dt class="text-slate-500">committed_filter_version</dt>
+            <dd class="mono">{{ key.committed_filter_version if key.committed_filter_version else '—' }}</dd></div>
+    </dl>
+</div>
+{% endblock %}

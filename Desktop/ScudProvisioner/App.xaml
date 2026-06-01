@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="ScudProvisioner.App">
+    <Application.Resources>
+        <ResourceDictionary>
+            <Color x:Key="Primary">#1F6FEB</Color>
+            <Color x:Key="Surface">#1E1E1E</Color>
+            <Color x:Key="OnSurface">#E6E6E6</Color>
+            <Color x:Key="OnSurfaceMuted">#9AA0A6</Color>
+            <Color x:Key="Success">#2EA043</Color>
+            <Color x:Key="Danger">#F85149</Color>
+
+            <Style TargetType="Button">
+                <Setter Property="BackgroundColor" Value="{StaticResource Primary}" />
+                <Setter Property="TextColor" Value="White" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="16,8" />
+            </Style>
+            <Style TargetType="Entry">
+                <Setter Property="ClearButtonVisibility" Value="WhileEditing" />
+            </Style>
+            <Style TargetType="Label" x:Key="FieldLabel">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="TextColor" Value="{StaticResource OnSurfaceMuted}" />
+                <Setter Property="Margin" Value="0,8,0,2" />
+            </Style>
+            <Style TargetType="Label" x:Key="LogText">
+                <Setter Property="FontFamily" Value="Consolas, Menlo, monospace" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

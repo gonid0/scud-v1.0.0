@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Табель — {{ user.display_name }}{% endblock %}
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<a href="/admin/users/{{ user.user_id }}" class="text-sm text-blue-600 hover:underline">← К профилю</a>
+
+<div class="flex items-start justify-between mt-2 mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">Табель — {{ user.display_name }}</h1>
+        <p class="text-sm text-slate-500 mt-1">
+            login=<span class="mono">{{ user.login }}</span> · период: последние {{ days }} дней ·
+            всего проходов: <b>{{ total }}</b>
+        </p>
+    </div>
+    <form method="get" class="flex items-center gap-2 text-sm">
+        <label class="text-slate-500">Период (дней):</label>
+        <select name="days" onchange="this.form.submit()" class="px-2 py-1 border border-slate-300 rounded text-sm">
+            {% for d in [7, 14, 30, 60, 90, 180] %}
+                <option value="{{ d }}" {% if days == d %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+        </select>
+        <a class="text-emerald-700 hover:underline ml-2"
+           href="/admin/passages/export.csv?user_id={{ user.user_id }}">⤓ CSV</a>
+    </form>
+</div>
+
+<div class="bg-white rounded-lg shadow p-5 mb-6">
+    <h2 class="font-semibold mb-3">Проходы по дням</h2>
+    <div style="height: 240px; position: relative;">
+        <canvas id="attendanceChart"></canvas>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white rounded-lg shadow p-5">
+        <h2 class="font-semibold mb-3">Раскладка по ридерам</h2>
+        {% if per_reader %}
+        <table class="w-full text-sm">
+            <thead class="text-xs uppercase text-slate-500 border-b">
+                <tr><th class="text-left py-1">Ридер</th><th class="text-right">Проходов</th></tr>
+            </thead>
+            <tbody>
+            {% for rid, name, cnt in per_reader %}
+                <tr class="border-b last:border-0">
+                    <td class="py-1">
+                        <a href="/admin/readers/{{ rid.hex() }}" class="text-blue-600 hover:underline">{{ name }}</a>
+                    </td>
+                    <td class="text-right mono">{{ cnt }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p class="text-sm text-slate-500">Проходов за период нет.</p>
+        {% endif %}
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-5">
+        <h2 class="font-semibold mb-3">Первый/последний проход по дням</h2>
+        <p class="text-xs text-slate-500 mb-3">
+            Для табельных систем: «когда пришёл/ушёл», количество проходов в день.
+        </p>
+        {% if per_day_rows %}
+        <table class="w-full text-sm">
+            <thead class="text-xs uppercase text-slate-500 border-b">
+                <tr>
+                    <th class="text-left py-1">Дата</th>
+                    <th class="text-left">Первый</th>
+                    <th class="text-left">Последний</th>
+                    <th class="text-right">Кол-во</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for r in per_day_rows %}
+                <tr class="border-b last:border-0">
+                    <td class="py-1 mono text-xs">{{ r.day }}</td>
+                    <td class="mono text-xs">{{ r.first_at[11:16] if r.first_at else '—' }}</td>
+                    <td class="mono text-xs">{{ r.last_at[11:16] if r.last_at else '—' }}</td>
+                    <td class="text-right mono">{{ r.cnt }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p class="text-sm text-slate-500">Нет данных.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+(function() {
+    const ctx = document.getElementById('attendanceChart');
+    if (!ctx) return;
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ daily_labels_json | safe }},
+            datasets: [{
+                label: 'Проходов в день',
+                data: {{ daily_counts_json | safe }},
+                borderColor: 'rgba(16, 185, 129, 1)',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                tension: 0.2,
+                fill: true,
+                pointRadius: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 } },
+                x: {
+                    ticks: { autoSkip: true, maxTicksLimit: 12,
+                             callback: function(v, i) { const l = this.getLabelForValue(v); return l ? l.slice(5) : l; } }
+                }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+})();
+</script>
+{% endblock %}

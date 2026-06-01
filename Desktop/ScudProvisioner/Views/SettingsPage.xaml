@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:ScudProvisioner.ViewModels"
+             x:Class="ScudProvisioner.Views.SettingsPage"
+             x:DataType="vm:SettingsViewModel"
+             Title="Settings">
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="0" MaximumWidthRequest="720">
+            <Label Text="Backend connection" FontSize="20" FontAttributes="Bold" Margin="0,0,0,8" />
+
+            <Label Text="Backend base URL" Style="{StaticResource FieldLabel}" />
+            <Entry Text="{Binding BackendUrl}" Placeholder="http://localhost:8000" />
+
+            <Label Text="Admin API key (X-Api-Key)" Style="{StaticResource FieldLabel}" />
+            <Entry Text="{Binding AdminApiKey}" IsPassword="True" Placeholder="sk_admin_..." />
+
+            <Label Text="Defaults applied during provisioning" FontSize="20" FontAttributes="Bold" Margin="0,24,0,8" />
+
+            <Label Text="Serial baud rate" Style="{StaticResource FieldLabel}" />
+            <Entry Text="{Binding Baud}" Keyboard="Numeric" Placeholder="115200" />
+
+            <Label Text="Lock duration, ms (legacy fallback — now set per config template on the Templates tab)" Style="{StaticResource FieldLabel}" />
+            <Entry Text="{Binding LockDurationMs}" Keyboard="Numeric" Placeholder="3000" />
+
+            <Button Text="Save" Command="{Binding SaveCommand}" Margin="0,24,0,0" HorizontalOptions="Start" />
+            <Label Text="{Binding Status}" TextColor="{StaticResource Success}" Margin="0,8,0,0" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

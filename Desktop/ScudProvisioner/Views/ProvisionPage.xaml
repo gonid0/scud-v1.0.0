@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:ScudProvisioner.ViewModels"
+             xmlns:m="clr-namespace:ScudProvisioner.Models"
+             x:Class="ScudProvisioner.Views.ProvisionPage"
+             x:DataType="vm:ProvisionViewModel"
+             Title="Provision">
+    <Grid Padding="24" RowDefinitions="Auto,*" ColumnDefinitions="380,*" ColumnSpacing="24" RowSpacing="0">
+
+        <!-- Левая колонка: форма -->
+        <ScrollView Grid.Row="0" Grid.RowSpan="2" Grid.Column="0">
+            <VerticalStackLayout Spacing="0">
+                <Label Text="Reader provisioning" FontSize="22" FontAttributes="Bold" Margin="0,0,0,8" />
+                <Label Text="Подключите ESP32 по USB, выберите serial-порт и группу ридеров. Приложение сгенерирует на ридере keypair, зарегистрирует ридер на бэкенде и зальёт серверные ключи в NVS."
+                       FontSize="13"
+                       TextColor="{StaticResource OnSurfaceMuted}"
+                       Margin="0,0,0,16" />
+
+                <Label Text="Serial port" Style="{StaticResource FieldLabel}" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <Picker ItemsSource="{Binding Ports}" SelectedItem="{Binding SelectedPort}" />
+                    <Button Grid.Column="1"
+                            Text="↻"
+                            WidthRequest="44"
+                            BackgroundColor="Transparent"
+                            TextColor="{StaticResource OnSurface}"
+                            Command="{Binding RefreshPortsCommand}" />
+                </Grid>
+
+                <Label Text="Reader group" Style="{StaticResource FieldLabel}" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <Picker ItemsSource="{Binding Groups}"
+                            ItemDisplayBinding="{Binding Name}"
+                            SelectedItem="{Binding SelectedGroup}" />
+                    <Button Grid.Column="1"
+                            Text="Load"
+                            BackgroundColor="Transparent"
+                            TextColor="{StaticResource Primary}"
+                            Command="{Binding RefreshGroupsCommand}" />
+                </Grid>
+
+                <Label Text="Server profile (optional — empty = local template)" Style="{StaticResource FieldLabel}" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <Picker ItemsSource="{Binding Profiles}"
+                            ItemDisplayBinding="{Binding Name}"
+                            SelectedItem="{Binding SelectedProfile}" />
+                    <Button Grid.Column="1"
+                            Text="Load"
+                            BackgroundColor="Transparent"
+                            TextColor="{StaticResource Primary}"
+                            Command="{Binding RefreshProfilesCommand}" />
+                </Grid>
+
+                <Label Text="Display name" Style="{StaticResource FieldLabel}" />
+                <Entry Text="{Binding DisplayName}" Placeholder="Entrance reader" />
+
+                <Label Text="Description (optional)" Style="{StaticResource FieldLabel}" />
+                <Entry Text="{Binding Description}" Placeholder="Floor 3, west wing" />
+
+                <Button Text="Provision reader"
+                        Command="{Binding ProvisionCommand}"
+                        Margin="0,24,0,0"
+                        HorizontalOptions="Fill" />
+
+                <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                   IsVisible="{Binding IsBusy}"
+                                   HorizontalOptions="Start"
+                                   Margin="0,12,0,0" />
+
+                <Frame BorderColor="{StaticResource OnSurfaceMuted}"
+                       Padding="12"
+                       Margin="0,16,0,0"
+                       IsVisible="{Binding HasLastResult}">
+                    <VerticalStackLayout Spacing="2">
+                        <Label Text="Last enrolled reader" FontAttributes="Bold" />
+                        <Label Style="{StaticResource LogText}" Text="{Binding LastReaderIdHex, StringFormat='reader_id    : {0}'}" />
+                        <Label Style="{StaticResource LogText}" Text="{Binding LastServerEdHex, StringFormat='server Ed pub: {0}'}" />
+                        <Label Style="{StaticResource LogText}" Text="{Binding LastServerXHex,  StringFormat='server X  pub: {0}'}" />
+                    </VerticalStackLayout>
+                </Frame>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Правая колонка: статус + лог -->
+        <Label Grid.Row="0" Grid.Column="1"
+               Text="{Binding StatusBanner}"
+               FontSize="14"
+               TextColor="{StaticResource OnSurfaceMuted}"
+               Margin="0,0,0,8" />
+
+        <Frame Grid.Row="1" Grid.Column="1"
+               BorderColor="{StaticResource OnSurfaceMuted}"
+               BackgroundColor="#0E0E0E"
+               Padding="12">
+            <ScrollView>
+                <CollectionView ItemsSource="{Binding LogLines}">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <Label Text="{Binding .}" Style="{StaticResource LogText}" />
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </ScrollView>
+        </Frame>
+    </Grid>
+</ContentPage>

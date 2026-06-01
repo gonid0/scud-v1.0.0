@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Ридеры{% endblock %}
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-semibold">Ридеры</h1>
+    <a href="/admin/readers/new" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded text-sm font-medium">
+        + Enroll reader
+    </a>
+</div>
+
+<form method="get" class="mb-4 flex gap-2 items-center flex-wrap">
+    <label class="text-sm text-slate-600">Группа:</label>
+    <select name="group_id" class="px-3 py-2 border border-slate-300 rounded text-sm" onchange="this.form.submit()">
+        <option value="">— все —</option>
+        {% for g in groups %}
+            <option value="{{ g.group_id }}" {% if filter_group_id == g.group_id %}selected{% endif %}>{{ g.name }}</option>
+        {% endfor %}
+    </select>
+    <input type="text" name="q" value="{{ filter_q or '' }}" placeholder="Поиск по названию"
+           class="px-3 py-2 border border-slate-300 rounded text-sm w-72">
+    <button class="bg-white border border-slate-300 hover:bg-slate-100 px-3 py-2 rounded text-sm">Найти</button>
+    {% if filter_q or filter_group_id %}<a class="text-sm text-slate-500 py-2" href="/admin/readers">сбросить</a>{% endif %}
+</form>
+
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+            <tr>
+                <th class="text-left px-3 py-2">reader_id</th>
+                <th class="text-left px-3 py-2">Название</th>
+                <th class="text-left px-3 py-2">Группа</th>
+                <th class="text-left px-3 py-2">filter v.</th>
+                <th class="text-left px-3 py-2">Контакт</th>
+                <th class="text-left px-3 py-2">Активен</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for r in readers %}
+            <tr class="border-t hover:bg-slate-50">
+                <td class="px-3 py-2 mono text-xs">
+                    <a href="/admin/readers/{{ r.reader_id.hex() }}" class="text-blue-600 hover:underline">
+                        {{ r.reader_id.hex()[:16] }}…
+                    </a>
+                </td>
+                <td class="px-3 py-2">{{ r.display_name }}</td>
+                <td class="px-3 py-2">
+                    {% set g = group_by_id.get(r.reader_group_id) %}
+                    {{ g.name if g else r.reader_group_id }}
+                </td>
+                <td class="px-3 py-2 mono">{{ r.last_applied_filter_version }}</td>
+                <td class="px-3 py-2 text-xs">
+                    {% if r.last_contact_at %}
+                        {{ r.last_contact_at.strftime("%Y-%m-%d %H:%M") }}
+                    {% else %}
+                        <span class="text-slate-400">никогда</span>
+                    {% endif %}
+                </td>
+                <td class="px-3 py-2">
+                    {% if r.is_active %}
+                        <span class="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-xs">да</span>
+                    {% else %}
+                        <span class="text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-xs">нет</span>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="6" class="px-3 py-6 text-center text-slate-500 text-sm">Нет записей.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if next_cursor %}
+<div class="mt-4 text-right">
+    <a class="text-blue-600 hover:underline text-sm"
+       href="/admin/readers?cursor={{ next_cursor }}{% if filter_group_id %}&group_id={{ filter_group_id }}{% endif %}{% if filter_q %}&q={{ filter_q }}{% endif %}">Следующая →</a>
+</div>
+{% endif %}
+{% endblock %}

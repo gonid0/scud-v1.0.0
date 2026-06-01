@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Bulk permits{% endblock %}
+{% block content %}
+<a href="/admin/permits" class="text-sm text-blue-600 hover:underline">← К списку</a>
+<h1 class="text-2xl font-semibold mb-2 mt-2">Bulk-выдача permits</h1>
+<p class="text-sm text-slate-600 mb-4">
+    Выпустить много permits в один клик. Два режима: <b>один пользователь × вся группа ридеров</b>
+    (типичный сценарий «выдать сотруднику доступ ко всем дверям его этажа») или
+    <b>вся группа пользователей × один ридер</b> («впустить всю команду на стенд через турникет»).
+</p>
+
+<form method="post" action="/admin/permits/bulk" class="bg-white rounded-lg shadow p-6 space-y-5">
+    {# Mode switcher #}
+    <div>
+        <label class="block text-sm font-medium mb-1">Режим</label>
+        <select name="mode" required class="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                onchange="document.getElementById('m_uxg').style.display = this.value === 'user_x_group' ? '' : 'none';
+                          document.getElementById('m_gxr').style.display = this.value === 'group_x_reader' ? '' : 'none';">
+            <option value="user_x_group">1 пользователь × группа ридеров</option>
+            <option value="group_x_reader">группа пользователей × 1 ридер</option>
+        </select>
+    </div>
+
+    <div id="m_uxg" class="grid grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium mb-1">Пользователь</label>
+            <select name="user_id" class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+                <option value="">— выберите —</option>
+                {% for u in users %}
+                    <option value="{{ u.user_id }}">{{ u.display_name }} ({{ u.login }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">Группа ридеров</label>
+            <select name="reader_group_id" class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+                <option value="">— выберите —</option>
+                {% for g in reader_groups %}
+                    <option value="{{ g.group_id }}">{{ g.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div id="m_gxr" class="grid grid-cols-2 gap-4" style="display:none">
+        <div>
+            <label class="block text-sm font-medium mb-1">Группа пользователей (UUID)</label>
+            <select name="user_group_id" class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+                <option value="">— выберите —</option>
+                {% for ug in user_groups %}
+                    <option value="{{ ug.id }}">{{ ug.id }} ({{ ug.count }} польз.)</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">Ридер</label>
+            <select name="reader_id_hex" class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+                <option value="">— выберите —</option>
+                {% for r in readers %}
+                    <option value="{{ r.reader_id.hex() }}">{{ r.display_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <hr>
+
+    <div>
+        <label class="block text-sm font-medium mb-1">Шаблон названия permit</label>
+        <input name="display_name_template" required maxlength="128" value="{user} → {reader}"
+               class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+        <p class="text-xs text-slate-500 mt-1">Плейсхолдеры: <code>{user}</code>, <code>{reader}</code>.</p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium mb-1">Valid from</label>
+            <input name="valid_from" type="datetime-local" required
+                   class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">Valid until</label>
+            <input name="valid_until" type="datetime-local" required
+                   class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+        </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4">
+        <div>
+            <label class="block text-sm font-medium mb-1">n_parallel</label>
+            <input name="n_parallel" type="number" value="1" min="1" max="10"
+                   class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">Token TTL (ч)</label>
+            <input name="max_token_ttl_hours" type="number" value="24" min="1"
+                   class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+        </div>
+        <div class="flex items-end">
+            <label class="text-sm flex items-center gap-2">
+                <input type="checkbox" name="skip_existing" value="true" checked>
+                Пропускать существующие
+            </label>
+        </div>
+    </div>
+
+    <div class="pt-2">
+        <button class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded font-medium"
+                onclick="return confirm('Создать batch permits? Это может затронуть много пользователей.')">
+            Создать пачкой
+        </button>
+        <a class="text-sm text-slate-500 ml-3" href="/admin/permits">Отмена</a>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   ANDROID-06: Auto Backup отключён глобально (android:allowBackup="false").
+   Эти правила — defense-in-depth: если backup когда-либо включат обратно,
+   Room-БД scud.db (подписанные ключи + offline-очереди) НЕ должна покидать
+   устройство. Применяется на API < 31.
+   См. https://developer.android.com/guide/topics/data/autobackup
+-->
+<full-backup-content>
+    <exclude domain="database" path="scud.db" />
+    <exclude domain="database" path="scud.db-wal" />
+    <exclude domain="database" path="scud.db-shm" />
+    <exclude domain="database" path="scud.db-journal" />
+</full-backup-content>

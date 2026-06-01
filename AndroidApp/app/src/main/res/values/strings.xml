@@ -1,0 +1,278 @@
+<resources>
+    <!-- App / system (shown by the OS, follow system locale) -->
+    <string name="app_name">SCUD</string>
+    <string name="hce_service_description">SCUD access control HCE</string>
+    <string name="hce_aid_group">SCUD access</string>
+
+    <!-- Language selection (settings). Language names are shown in their own
+         language regardless of the current locale, so they are defined only here. -->
+    <string name="settings_language">Language</string>
+    <string name="language_english">English</string>
+    <string name="language_russian">Русский</string>
+
+    <!-- Common / shared -->
+    <string name="common_ok">OK</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_close">Close</string>
+    <string name="common_done">Done</string>
+    <string name="common_confirm">Confirm</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_error">Error</string>
+    <string name="common_back">Back</string>
+    <string name="common_loading">Loading…</string>
+    <string name="common_logout">Log out</string>
+    <string name="common_empty">—</string>
+
+    <!-- Bottom navigation tabs -->
+    <string name="nav_home">Home</string>
+    <string name="nav_permits">Permits</string>
+    <string name="nav_keys">Keys</string>
+    <string name="nav_tasks">Tasks</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Auth screen -->
+    <string name="auth_subtitle">Access Control</string>
+    <string name="auth_server_label">Server (domain or ip:port)</string>
+    <string name="auth_login_label">Login</string>
+    <string name="auth_password_label">Password</string>
+    <string name="auth_loading_button">Signing in…</string>
+    <string name="auth_submit_button">Sign in</string>
+    <string name="auth_security_notice">For security, the session is valid for a limited time.</string>
+    <string name="auth_empty_fields_error">Please fill in all fields</string>
+    <string name="auth_generic_error">Sign-in error</string>
+
+    <!-- Home screen -->
+    <string name="home_greeting_prefix">Hello,</string>
+    <string name="home_hero_title">Ready to tap</string>
+    <string name="home_hero_subtitle">Tap your phone to a reader or press Start</string>
+    <string name="home_start_nfc_button">Start NFC session</string>
+    <string name="home_stat_permits">Permits</string>
+    <string name="home_stat_keys">Keys</string>
+    <string name="home_stat_outgoing">To server</string>
+    <string name="home_stat_reader">To reader</string>
+    <string name="home_quick_actions_title">Quick actions</string>
+    <string name="home_quick_action_permits_title">My permits</string>
+    <string name="home_quick_action_permits_subtitle">View permits and revoke</string>
+    <string name="home_quick_action_keys_title">My keys</string>
+    <string name="home_quick_action_keys_subtitle">Active and archived</string>
+    <string name="home_quick_action_tasks_title">Queues</string>
+    <string name="home_quick_action_tasks_subtitle">Unsent reports and tasks</string>
+    <!-- Home: nearby BLE readers section -->
+    <string name="home_nearby_title">Devices nearby</string>
+    <string name="home_nearby_empty_hint">Approach a reader — nearby devices will appear here.</string>
+    <string name="home_nearby_scanning">Scanning for nearby devices…</string>
+    <string name="home_nearby_has_key">Key</string>
+    <string name="home_nearby_no_key">No key</string>
+    <string name="home_nearby_has_deliveries">Packages</string>
+    <string name="home_nearby_no_deliveries">No packages</string>
+    <string name="home_nearby_grant_permissions">Grant Bluetooth permission</string>
+
+    <!-- Keys screen -->
+    <string name="keys_title">Keys</string>
+    <string name="keys_revoke_via_server">Via server</string>
+    <string name="keys_revoke_via_reader">Via READER</string>
+    <string name="keys_delete_from_archive">Delete from archive</string>
+    <string name="keys_active_count">In use: %1$d / %2$d</string>
+    <string name="keys_slot_pending_bloom">A revoked key still occupies a slot until the reader applies the next bloom-filter update.</string>
+    <string name="keys_archived_count">archive: %1$d</string>
+    <string name="keys_lifetime_range">%1$s → %2$s</string>
+    <string name="keys_total_issued_limited">Valid: %1$d / %2$d</string>
+    <string name="keys_total_issued_unlimited">Valid: %1$d / ∞</string>
+    <string name="keys_request_new_key">Request new key</string>
+    <string name="keys_filter_active">Active (%1$d)</string>
+    <string name="keys_filter_all">All (%1$d)</string>
+    <string name="keys_clear_archive">Clear archive</string>
+    <string name="keys_empty_title">No keys</string>
+    <string name="keys_empty_subtitle_with_permit">Request a key for this permit — it will be issued by the server and bound to this device.</string>
+    <string name="keys_empty_subtitle_no_permit">Keys are issued automatically from your permits. Open a permit first.</string>
+    <string name="keys_swipe_revoke_reader">Via READER</string>
+    <string name="keys_swipe_revoke_server">Via server</string>
+    <string name="keys_swipe_delete">Delete</string>
+    <string name="keys_badge_this_phone">This phone</string>
+    <string name="keys_badge_primary">Selected for tap</string>
+    <string name="keys_status_expired">Expired</string>
+    <string name="keys_status_pending_activation">Activates later</string>
+    <string name="keys_status_active">Active</string>
+    <string name="keys_status_revoked_server">Revoked by server</string>
+    <string name="keys_status_revoked_reader">Revoked by reader</string>
+    <string name="keys_status_revoked_bloom">In bloom-filter</string>
+    <string name="keys_dialog_new_key_title">New key</string>
+    <string name="keys_dialog_start_label">Start:</string>
+    <string name="keys_dialog_end_label">End:</string>
+    <string name="keys_dialog_duration">Duration: %1$s (max %2$s)</string>
+    <string name="keys_duration_days_hours">%1$dd %2$dh</string>
+    <string name="keys_duration_hours_mins">%1$dh %2$dm</string>
+    <string name="keys_duration_mins">%1$dm</string>
+    <string name="keys_dialog_request_button">Request</string>
+    <string name="keys_dialog_date_next">Next → time</string>
+    <string name="keys_dialog_time_start_title">Start time</string>
+    <string name="keys_dialog_time_end_title">End time</string>
+    <string name="keys_dialog_confirm_revoke_server_title">Revoke via server</string>
+    <string name="keys_dialog_revoke_server_subtitle">%1$d key(s). The server marks the key as revoked_by_server. The reader will stop accepting it after the next bloom-filter update.</string>
+    <string name="keys_dialog_confirm_revoke_reader_title">Revoke via READER</string>
+    <string name="keys_dialog_revoke_reader_subtitle">%1$d key(s). The revocation is delivered on the next phone tap to the reader.</string>
+    <string name="keys_dialog_revoke_type_title">Revocation type</string>
+    <string name="keys_dialog_revoke_type_message">Choose what happens on the next tap of this reader.</string>
+    <string name="keys_revoke_type_access_and_revoke">Access + revoke</string>
+    <string name="keys_revoke_type_revoke_only">Revoke only</string>
+    <string name="keys_dialog_confirm_purge_title">Clear archive</string>
+    <string name="keys_dialog_purge_subtitle">All revoked and expired keys will be deleted from local storage. This does not affect the server or reader.</string>
+
+    <!-- Permits list screen -->
+    <string name="permits_title">Permits</string>
+    <string name="permits_refresh_cd">Refresh</string>
+    <string name="permits_sort_cd">Sort</string>
+    <string name="permits_revoke_selected">Revoke (%1$d)</string>
+    <string name="permits_search_placeholder">Search by name</string>
+    <string name="permits_filter_only_empty">Without keys only</string>
+    <string name="permits_error">Error: %1$s</string>
+    <string name="permits_empty_search_title">Nothing found</string>
+    <string name="permits_empty_title">No permits yet</string>
+    <string name="permits_empty_search_subtitle">Try another query or reset the filters</string>
+    <string name="permits_empty_subtitle">Permits are issued by an administrator. Ask them to issue you a permit for the required reader.</string>
+    <string name="permits_select_all">Select all</string>
+    <string name="permits_status_expired">expired</string>
+    <string name="permits_status_expiring">expiring soon</string>
+    <string name="permits_status_no_key">no key</string>
+    <string name="permits_status_active">active</string>
+    <string name="permits_keys_count">%1$d/%2$d keys</string>
+    <string name="permits_valid_until">Until %1$s</string>
+    <string name="permits_sort_expires_asc">By expiry (soonest)</string>
+    <string name="permits_sort_expires_desc">By expiry (latest)</string>
+    <string name="permits_sort_keys_asc">By key count ↑</string>
+    <string name="permits_sort_keys_desc">By key count ↓</string>
+    <string name="permits_revoke_dialog_title">Revoke permits?</string>
+    <string name="permits_revoke_dialog_message">This action is irreversible. The following will be revoked:</string>
+    <string name="permits_revoke_dialog_item">• %1$s</string>
+    <string name="permits_revoke_confirm">Revoke</string>
+
+    <!-- Permit detail screen -->
+    <string name="permit_detail_valid_until">Valid until %1$s</string>
+    <string name="permit_detail_parallel">Parallel: %1$d / %2$d</string>
+    <string name="permit_detail_max_ttl">Max TTL: %1$ds</string>
+    <string name="permit_detail_open_keys">Keys for this permit</string>
+
+    <!-- Tasks / queues screen -->
+    <string name="tasks_title">Queues</string>
+    <string name="tasks_tab_server">To server</string>
+    <string name="tasks_tab_reader">To reader</string>
+    <string name="tasks_target_reader">Reader: %1$s…</string>
+    <string name="tasks_retries">Retries: %1$d</string>
+    <string name="tasks_group_filter_delivery">Filter delivery</string>
+    <string name="tasks_type_filter_delivery_info">Filter info</string>
+    <string name="tasks_type_delivery_receipt">Delivery receipt</string>
+    <string name="tasks_type_passage_receipt">Passage receipt</string>
+    <string name="tasks_type_blacklist_report">Revocation report</string>
+    <string name="tasks_submit_all_button">Send all (%1$d)</string>
+    <string name="tasks_submit_result">Accepted %1$d, rejected %2$d</string>
+    <string name="tasks_empty_server_title">Queue is empty</string>
+    <string name="tasks_empty_server_subtitle">Reports (FDI, BLK, passage) waiting to be sent to the server will appear here.</string>
+    <string name="tasks_refresh_loading">Updating…</string>
+    <string name="tasks_refresh_button">Refresh list from server</string>
+    <string name="tasks_empty_reader_title">No packages for reader</string>
+    <string name="tasks_empty_reader_subtitle">Tap Refresh to get the latest filter updates from the server.</string>
+    <string name="tasks_revokes_section_title">Key revocations</string>
+    <string name="tasks_revoke_card_title">Revoke key</string>
+    <string name="tasks_downloaded_icon_description">Ready to send</string>
+    <string name="tasks_downloaded_for_reader">For %1$s…</string>
+    <string name="tasks_downloaded_subtitle">v%1$d · ready to tap on reader</string>
+    <string name="tasks_downloadable_subtitle">v%1$d · available for download</string>
+    <string name="tasks_download_button">Download</string>
+    <string name="tasks_refresh_error">Failed to refresh: %1$s</string>
+    <string name="tasks_download_error">Download failed: %1$s</string>
+
+    <!-- BLE readers screen -->
+    <string name="ble_readers_title">Active devices nearby</string>
+    <string name="ble_readers_not_supported">BLE is not supported on this device</string>
+    <string name="ble_readers_disabled">Bluetooth is off — enable it in settings</string>
+    <string name="ble_readers_missing_permissions">Missing permissions: %1$s</string>
+    <string name="ble_readers_scanning">Scanning…</string>
+    <string name="ble_readers_scan_button">Scan</string>
+    <string name="ble_readers_empty_hint">Approach the barrier/turnstile. Devices will appear here.</string>
+    <string name="ble_readers_device_name_fallback">SCUD-%1$s</string>
+    <string name="ble_readers_device_details">short_id: %1$s   RSSI: %2$d dBm</string>
+    <string name="ble_readers_open_button">Open</string>
+    <string name="ble_readers_error_unavailable">BLE is unavailable or off</string>
+    <string name="ble_readers_error_permissions">BLUETOOTH_SCAN / CONNECT permissions required</string>
+
+    <!-- BLE session screen -->
+    <string name="ble_session_title">BLE session</string>
+    <string name="ble_session_idle_message">Ready to connect…</string>
+    <string name="ble_session_connecting_message">Connecting and negotiating MTU…</string>
+    <string name="ble_session_reader_info">Reader: %1$s…</string>
+    <string name="ble_session_reader_name">Reader: %1$s</string>
+    <string name="ble_session_reader_id">ID: %1$s…</string>
+    <string name="ble_session_reader_verified">✔ Identity verified (signed)</string>
+    <string name="ble_session_reader_unverified">⚠ Unverified reader — confirm you tapped this device</string>
+    <string name="ble_session_confirm_prompt">Confirm you are at this reader before opening:</string>
+    <string name="ble_session_key_info">Available key: %1$s…</string>
+    <string name="ble_session_expiry">Expires: %1$s</string>
+    <string name="ble_session_grant_access_button">Open</string>
+    <string name="ble_session_no_key_message">No active key on this phone for reader %1$s…\nRequest a permit from an administrator.</string>
+    <string name="ble_session_success">✅ Access granted</string>
+    <string name="ble_session_denied">⛔ %1$s</string>
+    <string name="ble_session_receipt_captured">Passage receipt saved for server synchronization.</string>
+    <string name="ble_session_receipt_not_captured">Passage receipt not received.</string>
+    <string name="ble_session_error">Error: %1$s</string>
+    <string name="ble_session_sending_access">ACCESS…</string>
+    <string name="ble_session_fetching_receipt">Fetching passage receipt…</string>
+    <string name="ble_session_error_connect">connect: %1$s</string>
+    <string name="ble_session_error_access">access: %1$s</string>
+    <string name="ble_session_error_reader_mismatch">A different reader answered — aborting. Make sure you are at the expected reader.</string>
+    <string name="ble_session_start_button">Start</string>
+    <string name="ble_session_running_ops">Running operations…</string>
+    <string name="ble_session_actions_summary">Will do: %1$s</string>
+    <string name="ble_session_action_access">access</string>
+    <string name="ble_session_action_delivery">filter delivery</string>
+    <string name="ble_session_action_revoke">key revoke</string>
+    <string name="ble_session_nothing_to_do">No key and no pending tasks for reader %1$s…\nNothing to do here.</string>
+    <string name="ble_session_done">Done: %1$d operation(s).</string>
+
+    <!-- Tap (NFC) screen and tap status -->
+    <string name="tap_waiting_prompt">Bring your phone to the READER</string>
+    <string name="tap_log_title">Log (%1$d)</string>
+    <string name="tap_log_clear">Clear</string>
+    <string name="tap_log_empty">— empty —</string>
+    <string name="log_copy">Copy</string>
+    <string name="log_clear">Clear</string>
+    <string name="log_copied">Log copied</string>
+    <string name="tap_exchanging_with_reader">Exchanging with READER…</string>
+    <string name="tap_unknown_reader">Unknown reader</string>
+    <string name="tap_time_expired">Time expired</string>
+    <string name="tap_connection_lost">Connection with reader lost</string>
+    <string name="tap_door_opened">Door opened</string>
+    <string name="tap_denied">Denied: %1$s</string>
+    <string name="tap_done">Done</string>
+    <string name="tap_session_completed">Session completed</string>
+    <!-- Full-screen tap-session overlay (Google-Pay-like), launched on tap when the
+         in-app Tap screen is not already in foreground. -->
+    <string name="tap_overlay_channel_name">Access sessions</string>
+    <string name="tap_overlay_channel_desc">Shows the reader session that starts when you tap your phone</string>
+    <string name="tap_overlay_session_title">Access session</string>
+    <string name="tap_overlay_connecting">Connecting to reader…</string>
+    <string name="tap_overlay_hold">Hold your phone near the reader</string>
+    <!-- Reader-time block (NFC + BLE windows): current reader clock and its drift. -->
+    <string name="reader_time_title">Reader time</string>
+    <string name="reader_time_drift">Drift: %1$s</string>
+    <string name="reader_time_vs_phone">relative to phone clock</string>
+    <string name="reader_time_unit_sec">s</string>
+    <string name="reader_time_unit_min">min</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_accounts">Accounts</string>
+    <string name="settings_add_account">Add account</string>
+    <string name="settings_account_active">Active account</string>
+    <string name="settings_copied">Copied</string>
+    <string name="settings_section_account">Account</string>
+    <string name="settings_login_label">Login</string>
+    <string name="settings_server_label">Server</string>
+    <string name="settings_device_id_label">Device ID</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_version_label">Version</string>
+    <string name="settings_protocol_label">Protocol</string>
+    <string name="settings_about_description">SCUD — offline access control. The phone relays packets between the server and the reader via NFC tap or BLE.</string>
+    <string name="settings_logout_button">Log out of account</string>
+    <string name="settings_logout_confirm_title">Log out of account?</string>
+    <string name="settings_logout_confirm_message">All local data (keys, queues, cache) will be deleted from the device. Permits and history on the server will remain.</string>
+</resources>

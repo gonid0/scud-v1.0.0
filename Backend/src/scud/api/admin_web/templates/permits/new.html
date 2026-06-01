@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Новый permit{% endblock %}
+{% block content %}
+<div class="max-w-2xl">
+    <h1 class="text-2xl font-semibold mb-2">Новый permit</h1>
+    <a href="/admin/permits" class="text-sm text-blue-600 hover:underline">← К списку</a>
+
+    {# Шаблоны — быстрая подстановка дат. JS просто заполняет form-inputs. #}
+    {% if presets %}
+    <div class="bg-slate-50 border border-slate-200 rounded p-4 mt-4">
+        <div class="text-xs uppercase text-slate-500 tracking-wider mb-2">Шаблоны</div>
+        <div class="flex flex-wrap gap-2">
+            {% for p in presets %}
+            <button type="button"
+                    class="preset-btn px-3 py-1.5 text-sm bg-white border border-slate-300 hover:bg-slate-100 rounded"
+                    title="{{ p.description }}"
+                    data-vf="{{ p.valid_from }}"
+                    data-vu="{{ p.valid_until }}"
+                    data-np="{{ p.n_parallel }}"
+                    data-ttl="{{ p.max_token_ttl_hours }}">
+                {{ p.label }}
+            </button>
+            {% endfor %}
+        </div>
+        <p class="text-xs text-slate-500 mt-2">
+            Кликните, чтобы автоматически заполнить даты. Затем при желании
+            подкорректируйте вручную.
+        </p>
+    </div>
+    <script>
+        // Простая подстановка: data-* атрибут → input value.
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelector('input[name="valid_from"]').value = btn.dataset.vf;
+                document.querySelector('input[name="valid_until"]').value = btn.dataset.vu;
+                document.querySelector('input[name="n_parallel"]').value = btn.dataset.np;
+                document.querySelector('input[name="max_token_ttl_hours"]').value = btn.dataset.ttl;
+            });
+        });
+    </script>
+    {% endif %}
+
+    <form method="post" action="/admin/permits" class="bg-white rounded-lg shadow p-6 mt-4 space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium mb-1">Пользователь</label>
+                <select name="user_id" required class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+                    {% for u in users %}
+                        <option value="{{ u.user_id }}" {% if preselect_user_id == u.user_id %}selected{% endif %}>
+                            {{ u.display_name }} ({{ u.login }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1">Ридер</label>
+                <select name="reader_id_hex" required class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+                    {% for r in readers %}
+                        <option value="{{ r.reader_id.hex() }}">{{ r.display_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">Название</label>
+            <input name="display_name" required maxlength="128"
+                   class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+        </div>
+        <div>
+            <label class="block text-sm font-medium mb-1">Описание</label>
+            <textarea name="description" rows="2"
+                      class="w-full px-3 py-2 border border-slate-300 rounded text-sm"></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium mb-1">Valid from</label>
+                <input name="valid_from" type="datetime-local" required
+                       class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1">Valid until</label>
+                <input name="valid_until" type="datetime-local" required
+                       class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium mb-1">N parallel keys</label>
+                <input name="n_parallel" type="number" value="1" min="1" max="10"
+                       class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+                <p class="text-xs text-slate-500 mt-1">Сколько устройств одновременно могут держать ключ.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1">Max token TTL (часов)</label>
+                <input name="max_token_ttl_hours" type="number" value="24" min="1"
+                       class="w-full px-3 py-2 border border-slate-300 rounded text-sm">
+            </div>
+        </div>
+        <button class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded font-medium">Создать</button>
+    </form>
+</div>
+{% endblock %}

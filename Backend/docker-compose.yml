@@ -1,0 +1,102 @@
+# Base dev/staging compose. Подкладывается docker-compose.prod.yml для production:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Пароли и URL берутся из .env (см. .env.example). В dev-режиме fallback к
+# плейн-значениям сохранён, чтобы `docker compose up` работал из коробки.
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-scud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scud}
+      POSTGRES_DB: ${POSTGRES_DB:-scud}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # В prod overlay этот порт убирается (`ports: !reset null`).
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scud}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks: [scud_net]
+
+  migrate:
+    build:
+      context: .
+      target: app
+    command: alembic upgrade head
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://scud:scud@postgres/scud}
+    networks: [scud_net]
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: app
+    command: uvicorn scud.main:app --host 0.0.0.0 --port 8000 --workers 2
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://scud:scud@postgres/scud}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "${API_BIND:-0.0.0.0}:${API_PORT:-8000}:8000"
+    # В dev оставляем bind-mount для hot-reload через `docker compose restart app`.
+    # В prod overlay этот mount удаляется (источник зашит в image).
+    volumes:
+      - ./src:/app/src:ro
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks: [scud_net]
+
+  worker:
+    build:
+      context: .
+      target: app
+    command: python -m scud.worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://scud:scud@postgres/scud}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # WORKER_ID не читается кодом (worker.py берёт hostname-pid), поэтому реплики
+      # получают уникальные id автоматически. Оставлен для совместимости/логов.
+      WORKER_ID: ${WORKER_ID:-worker-1}
+    # Несколько реплик worker'а. Безопасно: fetch_next_task берёт задачи через
+    # FOR UPDATE SKIP LOCKED, поэтому две реплики никогда не возьмут одну задачу —
+    # это снимает head-of-line blocking, когда один насыщенный ридер надолго
+    # занимает воркер. Дублировать логику не нужно: один и тот же образ.
+    # Переопределить число: WORKER_REPLICAS=4 docker compose up -d
+    deploy:
+      replicas: ${WORKER_REPLICAS:-2}
+    volumes:
+      - ./src:/app/src:ro
+    restart: unless-stopped
+    networks: [scud_net]
+
+volumes:
+  pgdata:
+
+networks:
+  scud_net:
+    driver: bridge

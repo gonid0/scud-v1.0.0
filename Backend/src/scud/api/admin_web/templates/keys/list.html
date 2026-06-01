@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Issued keys{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-6">Issued keys</h1>
+
+<form method="get" class="mb-4 flex gap-2 items-center">
+    <label class="text-sm text-slate-600">Статус:</label>
+    <select name="status" class="px-3 py-2 border border-slate-300 rounded text-sm" onchange="this.form.submit()">
+        <option value="">— все —</option>
+        {% for s in ['active', 'revoked_by_server', 'revoked_by_reader', 'revoked_in_bloom', 'expired'] %}
+            <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+    </select>
+</form>
+
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+            <tr>
+                <th class="text-left px-3 py-2">key_id</th>
+                <th class="text-left px-3 py-2">Permit</th>
+                <th class="text-left px-3 py-2">Ридер</th>
+                <th class="text-left px-3 py-2">serial</th>
+                <th class="text-left px-3 py-2">Статус</th>
+                <th class="text-left px-3 py-2">expires_at</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for k in keys %}
+            {% set p = permits_map.get(k.permit_id) %}
+            {% set r = readers_map.get(k.reader_id) %}
+            <tr class="border-t hover:bg-slate-50">
+                <td class="px-3 py-2 mono text-xs">
+                    <a href="/admin/keys/{{ k.key_id.hex() }}" class="text-blue-600 hover:underline">
+                        {{ k.key_id.hex()[:16] }}…
+                    </a>
+                </td>
+                <td class="px-3 py-2">
+                    {% if p %}<a href="/admin/permits/{{ p.permit_id }}" class="hover:underline">{{ p.display_name }}</a>{% else %}—{% endif %}
+                </td>
+                <td class="px-3 py-2">
+                    {% if r %}<a href="/admin/readers/{{ r.reader_id.hex() }}" class="hover:underline">{{ r.display_name }}</a>{% else %}—{% endif %}
+                </td>
+                <td class="px-3 py-2 mono">{{ k.serial }}</td>
+                <td class="px-3 py-2 text-xs">{{ k.status }}</td>
+                <td class="px-3 py-2 mono text-xs">{{ k.expires_at.strftime("%Y-%m-%d") }}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="6" class="px-3 py-6 text-center text-slate-500 text-sm">Нет ключей.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if next_cursor %}
+<div class="mt-4 text-right">
+    <a class="text-blue-600 hover:underline text-sm"
+       href="/admin/keys?cursor={{ next_cursor }}{% if filter_status %}&status={{ filter_status }}{% endif %}">Следующая →</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   ANDROID-05: cleartext (http) трафик запрещён по умолчанию. Боевой backend —
+   только https. Исключение делаем точечно для dev-хостов, чтобы локальная
+   разработка против http-бэкенда продолжала работать:
+     - localhost / 127.0.0.1 — backend на том же устройстве;
+     - 10.0.2.2             — host-машина с точки зрения Android-эмулятора;
+     - 192.168.1.173        — dev-машина с backend'ом в LAN (реальный телефон по Wi-Fi).
+   Сменился IP dev-машины? Добавь его сюда отдельной <domain>-строкой.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">192.168.1.173</domain>
+    </domain-config>
+</network-security-config>

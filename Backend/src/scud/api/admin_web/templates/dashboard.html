@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+{# Chart.js — single-file CDN, no build step. Версия зафиксирована, чтобы не ловить
+   breaking changes (Chart.js 4 имеет несовместимости с 3.x). #}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<h1 class="text-2xl font-semibold mb-6">Обзор системы</h1>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    {% macro card(label, value, color='slate') %}
+    <div class="bg-white rounded-lg shadow p-4 border-l-4 border-{{ color }}-500">
+        <div class="text-xs uppercase text-slate-500 tracking-wider">{{ label }}</div>
+        <div class="text-2xl font-semibold text-slate-800 mt-1">{{ value }}</div>
+    </div>
+    {% endmacro %}
+    {{ card('Пользователи', counts.users, 'blue') }}
+    {{ card('Группы', counts.reader_groups, 'indigo') }}
+    {{ card('Ридеры', counts.readers, 'cyan') }}
+    {{ card('Permits', counts.active_permits, 'emerald') }}
+    {{ card('Активные ключи', counts.active_keys, 'amber') }}
+    {{ card('Проходов сегодня', counts.passages_today, 'rose') }}
+    {{ card('Проходов за 7 дней', counts.passages_week, 'fuchsia') }}
+    {{ card('Reports в очереди', counts.unprocessed_reports, 'slate') }}
+</div>
+
+<div class="bg-white rounded-lg shadow p-5 mb-6">
+    <div class="flex justify-between items-center mb-3">
+        <h2 class="font-semibold">Проходы за последние 30 дней</h2>
+        <a class="text-xs text-blue-600 hover:underline" href="/admin/passages">Подробнее →</a>
+    </div>
+    <div style="height: 240px; position: relative;">
+        <canvas id="dailyPassagesChart"></canvas>
+    </div>
+</div>
+
+<script>
+// Данные сериализуются на сервере → данные внутри атрибута safe от XSS,
+// потому что Jinja2 |tojson экранирует. Здесь мы используем уже
+// json.dumps()-ed строки (см. views_dashboard.py).
+(function() {
+    const ctx = document.getElementById('dailyPassagesChart');
+    if (!ctx) return;
+    const labels = {{ daily_labels_json | safe }};
+    const counts = {{ daily_counts_json | safe }};
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Проходов в день',
+                data: counts,
+                backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                borderColor: 'rgba(37, 99, 235, 1)',
+                borderWidth: 1,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 } },
+                x: {
+                    ticks: {
+                        autoSkip: true,
+                        maxTicksLimit: 12,
+                        // Короткое отображение дат: "MM-DD".
+                        callback: function(val, idx) {
+                            const lbl = this.getLabelForValue(val);
+                            return lbl ? lbl.slice(5) : lbl;
+                        }
+                    }
+                }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+})();
+</script>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 bg-white rounded-lg shadow p-5">
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="font-semibold text-slate-800">Последние проходы</h2>
+            <a class="text-xs text-blue-600 hover:underline" href="/admin/passages">Все →</a>
+        </div>
+        {% if recent_passages %}
+        <table class="w-full text-sm">
+            <thead class="text-xs text-slate-500 uppercase border-b">
+                <tr><th class="text-left py-1">Время</th><th class="text-left">Кто</th><th class="text-left">Где</th></tr>
+            </thead>
+            <tbody>
+            {% for ev, user, reader in recent_passages %}
+                <tr class="border-b last:border-0">
+                    <td class="py-1 mono text-xs text-slate-600">{{ ev.passed_at.strftime("%Y-%m-%d %H:%M") }}</td>
+                    <td>
+                        {% if user %}
+                            <a href="/admin/users/{{ user.user_id }}" class="text-blue-600 hover:underline">{{ user.display_name }}</a>
+                        {% else %}
+                            <span class="text-slate-400">— (permit удалён)</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/admin/readers/{{ reader.reader_id.hex() }}" class="hover:underline">{{ reader.display_name }}</a>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p class="text-sm text-slate-500">Проходов пока нет.</p>
+        {% endif %}
+    </div>
+
+    <div class="space-y-6">
+        <div class="bg-white rounded-lg shadow p-5">
+            <h2 class="font-semibold text-slate-800 mb-3">Топ ридеров (7 дней)</h2>
+            {% if top_readers %}
+            <ul class="space-y-2 text-sm">
+                {% for rid, name, cnt in top_readers %}
+                <li class="flex justify-between">
+                    <a class="hover:underline" href="/admin/readers/{{ rid.hex() }}">{{ name }}</a>
+                    <span class="text-slate-500">{{ cnt }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+                <p class="text-sm text-slate-500">Нет данных за период.</p>
+            {% endif %}
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-5">
+            <h2 class="font-semibold text-slate-800 mb-3">⚠ Stale ридеры</h2>
+            <p class="text-xs text-slate-500 mb-2">Нет контакта более 48 часов.</p>
+            {% if stale_readers %}
+            <ul class="space-y-1 text-sm">
+                {% for r in stale_readers %}
+                <li>
+                    <a class="text-rose-700 hover:underline" href="/admin/readers/{{ r.reader_id.hex() }}">{{ r.display_name }}</a>
+                    <div class="text-xs text-slate-500">
+                        {% if r.last_contact_at %}посл.: {{ r.last_contact_at.strftime("%Y-%m-%d %H:%M") }}{% else %}никогда{% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+                <p class="text-sm text-emerald-700">Все ридеры на связи.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
